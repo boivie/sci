@@ -12,6 +12,10 @@ import types, re
 re_var = re.compile("{{(.*?)}}")
 
 
+class JobException(Exception):
+    pass
+
+
 class Parameter(object):
     def __init__(self, job, name, description, default,
                  required = False,
@@ -131,9 +135,14 @@ class Job(object):
             if not value:
                 value = self.PARAMETERS.get(name)
             if not value:
-                value = self.ENV.get(name, "")
+                value = self.ENV.get(name)
+            if not value:
+                self.error("Failed to replace template variable %s" % name)
             tmpl = tmpl.replace("{{%s}}" % name, value)
         return tmpl
+
+    def error(self, what):
+        raise JobException(what)
 
     def info(self):
         print("Job %s with main = %s" % (self.import_name, self.mainfn))
