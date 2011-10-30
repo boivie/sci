@@ -57,8 +57,10 @@ def run_single_matrix_job(product, variant):
     job.run("""
 . build/envsetup.sh
 lunch {{product}}-{{variant}}
-make -j{{JOB_CPUS}}""", name = "build")
-    job.run("zip {{result_file}} $OUT/*.img", name = "zip")
+make -j{{JOB_CPUS}}""", name = "build",
+            args = {"product": product, "variant": variant})
+    job.run("zip {{result_file}} $OUT/*.img", name = "zip",
+            args = {"result_file": result_file})
     job.store(result_file)
 
 

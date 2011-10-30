@@ -7,7 +7,9 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import types
+import types, re
+
+re_var = re.compile("{{(.*?)}}")
 
 
 class Parameter(object):
@@ -116,8 +118,22 @@ class Job(object):
     def get_stored(self, filename):
         print("Retrieving stored '%s' from the storage node" % filename)
 
-    def run(self, cmd, **kwargs):
-        print("Running CMD '%s'" % cmd)
+    def run(self, cmd, args = {}, **kwargs):
+        print("Running CMD '%s'" % self._format(cmd, args))
+
+    def _format(self, tmpl, args = {}):
+        while True:
+            m = re_var.search(tmpl)
+            if not m:
+                break
+            name = m.groups()[0]
+            value = args.get(name)
+            if not value:
+                value = self.PARAMETERS.get(name)
+            if not value:
+                value = self.ENV.get(name, "")
+            tmpl = tmpl.replace("{{%s}}" % name, value)
+        return tmpl
 
     def info(self):
         print("Job %s with main = %s" % (self.import_name, self.mainfn))
