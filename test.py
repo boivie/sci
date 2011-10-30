@@ -20,7 +20,7 @@ def get_products():
         return ["droid", "nexus_one", "emulator"]
     if "gingerbread" in branch():
         return ["nexus_one", "nexus_s", "emulator"]
-    raise job.error("Don't know which products to build!")
+    job.error("Don't know which products to build!")
 
 
 @job.default(build_id_prefix)
