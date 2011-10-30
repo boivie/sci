@@ -8,6 +8,7 @@
     :license: Apache License 2.0
 """
 import types, re
+from config import Config
 
 re_var = re.compile("{{(.*?)}}")
 
@@ -67,6 +68,7 @@ class Job(object):
         self.steps = []
         self.mainfn = None
         self.description = ""
+        self.config = Config()
 
     def set_description(self, description):
         self.description = description
@@ -102,6 +104,10 @@ class Job(object):
 
     def start(self, **kwargs):
         print("Starting %s" % (self.import_name))
+
+        # Read global config file
+        self.config.from_env("SCI_CONFIG")
+
         for k in kwargs:
             self.PARAMETERS[k] = kwargs[k]
         # Set default parameters
@@ -131,15 +137,21 @@ class Job(object):
             if not m:
                 break
             name = m.groups()[0]
-            value = args.get(name)
-            if not value:
-                value = self.PARAMETERS.get(name)
-            if not value:
-                value = self.ENV.get(name)
+            value = self.get_var(name, args = args)
             if not value:
                 self.error("Failed to replace template variable %s" % name)
-            tmpl = tmpl.replace("{{%s}}" % name, value)
+            tmpl = tmpl.replace("{{%s}}" % name, str(value))
         return tmpl
+
+    def get_var(self, name, args = {}):
+        value = args.get(name)
+        if not value:
+            value = self.PARAMETERS.get(name)
+        if not value:
+            value = self.ENV.get(name)
+        if not value:
+            value = self.config.get(name)
+        return value
 
     def error(self, what):
         raise JobException(what)

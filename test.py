@@ -5,8 +5,6 @@ job = Job(__name__)
 
 build_id_prefix = job.parameter("BUILD_ID_PREFIX", "The build ID prefix to use")
 branch = job.parameter("BRANCH", "Manifest branch", required = True)
-manifest_url = job.parameter("MANIFEST_URL", "Manifest URL",
-                       "http://review.company.com/platform/manifest.git")
 manifest_file = job.parameter("MANIFEST_FILE", "Manifest Filename",
                               default = "default.xml")
 products = job.parameter("PRODUCTS", "Products to build", type = "array")
@@ -40,7 +38,7 @@ def create_build_id():
 @job.step("Create Static Manifest")
 def create_manifest():
     job.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}} -m {{MANIFEST_FILE}}")
-    job.run("repo sync --jobs={{JOBS}}", name = "sync")
+    job.run("repo sync --jobs={{SYNC_JOBS}}", name = "sync")
     job.run("repo manifest -r -o static_manifest.xml")
 
     job.store("static_manifest.xml")
@@ -53,12 +51,13 @@ def run_single_matrix_job(product, variant):
     job.get_stored("static_manifest.xml")
     job.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}}")
     job.run("cp static_manifest.xml .repo/manifest.xml")
-    job.run("repo sync --jobs={{JOBS}}", name = "sync")
+    job.run("repo sync --jobs={{SYNC_JOBS}}", name = "sync")
     job.run("""
 . build/envsetup.sh
 lunch {{product}}-{{variant}}
-make -j{{JOB_CPUS}}""", name = "build",
-            args = {"product": product, "variant": variant})
+make -j{{jobs}}""", name = "build",
+            args = {"product": product, "variant": variant,
+                    "jobs": job.get_var("JOB_CPUS") + 1})
     job.run("zip {{result_file}} $OUT/*.img", name = "zip",
             args = {"result_file": result_file})
     job.store(result_file)
