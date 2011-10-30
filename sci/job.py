@@ -8,7 +8,8 @@
     :license: Apache License 2.0
 """
 import types, re
-from config import Config
+from .config import Config
+from .environment import Environment
 
 re_var = re.compile("{{(.*?)}}")
 
@@ -47,28 +48,16 @@ class Step(object):
         return self.fun(*args, **kwargs)
 
 
-class Env(object):
-    def __init__(self, job, name):
-        self.job = job
-        self.name = name
-
-    def set(self, value):
-        self.job.ENV[self.name] = value
-
-    def __call__(self):
-        return self.job.ENV.get(self.name)
-
-
 class Job(object):
     def __init__(self, import_name):
         self.import_name = import_name
         self.named = {}
-        self.ENV = {}
         self.PARAMETERS = {}
         self.steps = []
         self.mainfn = None
         self.description = ""
         self.config = Config()
+        self.env = Environment()
 
     def set_description(self, description):
         self.description = description
@@ -78,11 +67,6 @@ class Job(object):
         p = Parameter(self, name, description, default, **kwargs)
         self.named[name] = p
         return p
-
-    def env(self, name, **kwargs):
-        e = Env(self, name, **kwargs)
-        self.named[name] = e
-        return e
 
     def default(self, what, **kwargs):
         def decorator(f):
@@ -129,9 +113,9 @@ class Job(object):
         print("Retrieving stored '%s' from the storage node" % filename)
 
     def run(self, cmd, args = {}, **kwargs):
-        print("Running CMD '%s'" % self._format(cmd, args))
+        print("Running CMD '%s'" % self.format(cmd, args))
 
-    def _format(self, tmpl, args = {}):
+    def format(self, tmpl, args = {}):
         while True:
             m = re_var.search(tmpl)
             if not m:
@@ -148,7 +132,7 @@ class Job(object):
         if not value:
             value = self.PARAMETERS.get(name)
         if not value:
-            value = self.ENV.get(name)
+            value = self.env.get(name)
         if not value:
             value = self.config.get(name)
         return value
@@ -162,9 +146,4 @@ class Job(object):
         for name in self.named:
             obj = self.named[name]
             if issubclass(Parameter, obj.__class__):
-                print("  %s: %s" % (name, obj))
-        print("Environment:")
-        for name in self.named:
-            obj = self.named[name]
-            if issubclass(Env, obj.__class__):
                 print("  %s: %s" % (name, obj))

@@ -3,15 +3,13 @@ from sci import Job
 
 job = Job(__name__)
 
-build_id_prefix = job.parameter("BUILD_ID_PREFIX", "The build ID prefix to use")
 branch = job.parameter("BRANCH", "Manifest branch", required = True)
+build_id_prefix = job.parameter("BUILD_ID_PREFIX", "The build ID prefix to use")
 manifest_file = job.parameter("MANIFEST_FILE", "Manifest Filename",
                               default = "default.xml")
 products = job.parameter("PRODUCTS", "Products to build", type = "array")
 variants = job.parameter("VARIANTS", "Variants to build", type = "array",
                          default = ["eng", "userdebug", "user"])
-
-build_id = job.env("BUILD_ID")
 
 
 @job.default(products)
@@ -32,7 +30,7 @@ def default_build_id_prefix():
 
 @job.step("Create Build ID")
 def create_build_id():
-    build_id.set(build_id_prefix() + "_" + time.strftime("%y%m%d_%H%M%S"))
+    return build_id_prefix() + "_" + time.strftime("%y%m%d_%H%M%S")
 
 
 @job.step("Create Static Manifest")
@@ -44,23 +42,42 @@ def create_manifest():
     job.store("static_manifest.xml")
 
 
-@job.step("Run single matrix job")
-def run_single_matrix_job(product, variant):
-    result_file = "result-" + build_id() + "-" + \
-        product + "-" + variant + ".zip"
-    job.get_stored("static_manifest.xml")
+@job.step("ZIP resulted files")
+def zip_result():
+    zip_file = job.format("result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip")
+    out_path = job.format("out/target/product/{{PRODUCT}}")
+
+    job.run("zip {{zip_file}} {{out_path}}/*.img",
+            args = {"zip_file": zip_file, "out_path": out_path})
+    return zip_file
+
+
+@job.step("Get source code")
+def get_source():
     job.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}}")
     job.run("cp static_manifest.xml .repo/manifest.xml")
-    job.run("repo sync --jobs={{SYNC_JOBS}}", name = "sync")
+    job.run("repo sync --jobs={{SYNC_JOBS}}")
+
+
+@job.step("Build Android")
+def build_android():
     job.run("""
 . build/envsetup.sh
-lunch {{product}}-{{variant}}
-make -j{{jobs}}""", name = "build",
-            args = {"product": product, "variant": variant,
-                    "jobs": job.get_var("JOB_CPUS") + 1})
-    job.run("zip {{result_file}} $OUT/*.img", name = "zip",
-            args = {"result_file": result_file})
-    job.store(result_file)
+lunch {{PRODUCT}}-{{VARIANT}}
+make -j{{jobs}}""",
+            args = {"jobs": job.get_var("JOB_CPUS") + 1})
+
+
+@job.step("Run single matrix job")
+def run_single_matrix_job(product, variant):
+    job.env["PRODUCT"] = product
+    job.env["VARIANT"] = variant
+    job.get_stored("static_manifest.xml")
+
+    get_source()
+    build_android()
+    zip_file = zip_result()
+    job.store(zip_file)
 
 
 @job.step("Run matrix jobs")
@@ -77,8 +94,8 @@ def send_report():
 
 @job.main()
 def run():
-    create_build_id()
-    job.set_description(build_id())
+    job.env["BUILD_ID"] = create_build_id()
+    job.set_description(job.env["BUILD_ID"])
     create_manifest()
     run_matrix_jobs()
     send_report()
