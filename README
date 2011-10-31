@@ -1,0 +1,14 @@
+Environment Variables
+---------------------
+
+This information can be provided to a slave:
+
+ - SCI_MASTER_URL: The url to the master, if any.
+ - SCI_SERVER_ID: A short server identifier.
+   if this is not provided (which would mean running in a debug environment),
+   a random server ID is generated.
+ - SCI_JOB_KEY: The job key, which it will use with all communication to the
+   master. In a debug environment, there is no master, so it's unused.
+ - SCI_CONFIG: Path to the global configuration file. It will be loaded
+   by the job prior to executing it.
+

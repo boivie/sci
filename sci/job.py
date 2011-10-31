@@ -45,9 +45,9 @@ class Job(object):
         self.config = Config()
         self.env = Environment()
         self.debug = debug
-        # Create a server identifier
-        self.server_id = "S0"
         self.set_default_env()
+        self.master_url = os.environ.get("SCI_MASTER_URL")
+        self.job_key = os.environ.get("SCI_JOB_KEY")
 
     def set_description(self, description):
         self.description = description
@@ -63,7 +63,7 @@ class Job(object):
         if hostname.endswith(".local"):
             hostname = hostname[:-len(".local")]
         self.env["SCI_HOSTNAME"] = hostname
-        self.env["SCI_SERVER_ID"] = self.server_id
+        self.env["SCI_SERVER_ID"] = os.environ.get("SCI_SERVER_ID", "S0")
         now = datetime.now()
         self.env["SCI_DATETIME"] = now.strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -92,7 +92,7 @@ class Job(object):
         return "%d" % delta
 
     def print_banner(self, text, dash = "-"):
-        prefix = "[%s +%s]" % (self.server_id, self.timestr())
+        prefix = "[%s +%s]" % (self.env["SCI_SERVER_ID"], self.timestr())
         dash_left = (80 - len(text) - 4 - len(prefix)) / 2
         dash_right = 80 - len(text) - 4 - len(prefix) - dash_left
         print("%s%s[ %s ]%s" % (prefix, dash * dash_left,
