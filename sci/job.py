@@ -26,14 +26,11 @@ class Step(object):
         self.fun = fun
 
     def __call__(self, *args, **kwargs):
-        if self.job.debug:
-            print("Runing step '%s' with %s" % (self.name, args))
+        self.job.print_banner("Step: '%s'" % self.name)
         return self.fun(*args, **kwargs)
 
     def run_detached(self, *args, **kwargs):
-        if self.job.debug:
-            print("Runing DETACHED step '%s' (%s) with %s" % \
-                      (self.name, self.fun, args))
+        self.job.print_banner("Detach: '%s'" % self.name)
         return self.fun(*args, **kwargs)
 
 
@@ -75,10 +72,10 @@ class Job(object):
         return decorator
 
     @classmethod
-    def print_banner(cls, text):
+    def print_banner(cls, text, dash = "-"):
         dash_left = (80 - len(text) - 4) / 2
         dash_right = 80 - len(text) - 4 - dash_left
-        print("%s[ %s ]%s" % ("=" * dash_left, text, "=" * dash_right))
+        print("%s[ %s ]%s" % (dash * dash_left, text, dash * dash_right))
 
     def print_vars(self):
         def strfy(v):
@@ -94,16 +91,16 @@ class Job(object):
             print("  %s: %s" % (key, strfy(self.params[key])))
 
     def start(self, **kwargs):
-        self.print_banner("Preparing Job")
+        self.print_banner("Preparing Job", dash = "=")
         # Read global config file
         if self.config.from_env("SCI_CONFIG"):
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
         self.params.evaluate(initial = kwargs)
         self.print_vars()
-        self.print_banner("Starting Job")
+        self.print_banner("Starting Job", dash = "=")
         self.mainfn()
-        self.print_banner("Job Finished")
+        self.print_banner("Job Finished", dash = "=")
 
     def store(self, filename):
         if self.debug:
