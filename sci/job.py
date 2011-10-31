@@ -8,6 +8,7 @@
     :license: Apache License 2.0
 """
 import types, re, os, socket, time
+from datetime import datetime
 from .config import Config
 from .environment import Environment
 from .params import Parameters
@@ -63,6 +64,8 @@ class Job(object):
             hostname = hostname[:-len(".local")]
         self.env["SCI_HOSTNAME"] = hostname
         self.env["SCI_SERVER_ID"] = self.server_id
+        now = datetime.now()
+        self.env["SCI_DATETIME"] = now.strftime("%Y-%m-%d_%H-%M-%S")
 
     def default(self, what, **kwargs):
         def decorator(f):
@@ -107,6 +110,9 @@ class Job(object):
         print("Parameters:")
         for key in sorted(self.params):
             print("  %s: %s" % (key, strfy(self.params[key])))
+        print("Initial Environment:")
+        for key in sorted(self.env):
+            print("  %s: %s" % (key, strfy(self.env[key])))
 
     def start(self, **kwargs):
         # Must set time first. It's used when printing
