@@ -7,7 +7,7 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import types, re, os, socket
+import types, re, os, socket, time
 from .config import Config
 from .environment import Environment
 from .params import Parameters
@@ -44,6 +44,9 @@ class Job(object):
         self.config = Config()
         self.env = Environment()
         self.debug = debug
+        # Create a server identifier
+        self.server_id = "S0"
+        self.set_default_env()
 
     def set_description(self, description):
         self.description = description
@@ -59,6 +62,7 @@ class Job(object):
         if hostname.endswith(".local"):
             hostname = hostname[:-len(".local")]
         self.env["SCI_HOSTNAME"] = hostname
+        self.env["SCI_SERVER_ID"] = self.server_id
 
     def default(self, what, **kwargs):
         def decorator(f):
@@ -78,11 +82,18 @@ class Job(object):
             return f
         return decorator
 
-    @classmethod
-    def print_banner(cls, text, dash = "-"):
-        dash_left = (80 - len(text) - 4) / 2
-        dash_right = 80 - len(text) - 4 - dash_left
-        print("%s[ %s ]%s" % (dash * dash_left, text, dash * dash_right))
+    def timestr(self):
+        delta = int(time.time() - self.start_time)
+        if delta > 59:
+            return "%dm%d" % (delta / 60, delta % 60)
+        return "%d" % delta
+
+    def print_banner(self, text, dash = "-"):
+        prefix = "[%s +%s]" % (self.server_id, self.timestr())
+        dash_left = (80 - len(text) - 4 - len(prefix)) / 2
+        dash_right = 80 - len(text) - 4 - len(prefix) - dash_left
+        print("%s%s[ %s ]%s" % (prefix, dash * dash_left,
+                                 text, dash * dash_right))
 
     def print_vars(self):
         def strfy(v):
@@ -98,6 +109,8 @@ class Job(object):
             print("  %s: %s" % (key, strfy(self.params[key])))
 
     def start(self, **kwargs):
+        # Must set time first. It's used when printing
+        self.start_time = time.time()
         self.print_banner("Preparing Job", dash = "=")
         # Read global config file
         if self.config.from_env("SCI_CONFIG"):
