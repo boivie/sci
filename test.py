@@ -1,7 +1,7 @@
 import time, itertools, sys
 from sci import Job
 
-job = Job(__name__)
+job = Job(__name__, debug = True)
 
 # Parameters - to allow a GUI to easily list them
 branch          = job.parameter("BRANCH", "Manifest branch", required = True)

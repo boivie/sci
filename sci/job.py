@@ -34,22 +34,25 @@ class Parameter(object):
 
 
 class Step(object):
-    def __init__(self, name, fun, **kwargs):
+    def __init__(self, job, name, fun, **kwargs):
+        self.job = job
         self.name = name
         self.fun = fun
 
     def __call__(self, *args, **kwargs):
-        print("Runing step '%s' with %s" % (self.name, args))
+        if self.job.debug:
+            print("Runing step '%s' with %s" % (self.name, args))
         return self.fun(*args, **kwargs)
 
     def run_detached(self, *args, **kwargs):
-        print("Runing DETACHED step '%s' (%s) with %s" % \
-                  (self.name, self.fun, args))
+        if self.job.debug:
+            print("Runing DETACHED step '%s' (%s) with %s" % \
+                      (self.name, self.fun, args))
         return self.fun(*args, **kwargs)
 
 
 class Job(object):
-    def __init__(self, import_name):
+    def __init__(self, import_name, debug = False):
         self.import_name = import_name
         self.named = {}
         self.PARAMETERS = {}
@@ -58,6 +61,7 @@ class Job(object):
         self.description = ""
         self.config = Config()
         self.env = Environment()
+        self.debug = debug
 
     def set_description(self, description):
         self.description = description
@@ -77,7 +81,7 @@ class Job(object):
     def step(self, name, **kwargs):
         def decorator(f):
             self.steps.append((name, f))
-            return Step(name, f, **kwargs)
+            return Step(self, name, f, **kwargs)
         return decorator
 
     def main(self, **kwargs):
@@ -107,13 +111,16 @@ class Job(object):
         print("All done.")
 
     def store(self, filename):
-        print("Storing '%s' on the storage node" % filename)
+        if self.debug:
+            print("Storing '%s' on the storage node" % filename)
 
     def get_stored(self, filename):
-        print("Retrieving stored '%s' from the storage node" % filename)
+        if self.debug:
+            print("Retrieving stored '%s' from the storage node" % filename)
 
     def run(self, cmd, args = {}, **kwargs):
-        print("Running CMD '%s'" % self.format(cmd, args))
+        if self.debug:
+            print("Running CMD '%s'" % self.format(cmd, args))
 
     def format(self, tmpl, args = {}):
         while True:
