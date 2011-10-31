@@ -10,27 +10,13 @@
 import types, re, os
 from .config import Config
 from .environment import Environment
+from .params import Parameters
 
 re_var = re.compile("{{(.*?)}}")
 
 
 class JobException(Exception):
     pass
-
-
-class Parameter(object):
-    def __init__(self, job, name, description, default,
-                 required = False,
-                 type = "string"):
-        self.job = job
-        self.name = name
-        self.description = description
-        self.required = required
-        self.default = default
-        self.type = type
-
-    def __call__(self):
-        return self.job.PARAMETERS.get(self.name)
 
 
 class Step(object):
@@ -54,11 +40,10 @@ class Step(object):
 class Job(object):
     def __init__(self, import_name, debug = False):
         self.import_name = import_name
-        self.named = {}
-        self.PARAMETERS = {}
         self.steps = []
         self.mainfn = None
         self.description = ""
+        self.params = Parameters()
         self.config = Config()
         self.env = Environment()
         self.debug = debug
@@ -68,9 +53,8 @@ class Job(object):
 
     def parameter(self, name, description = "", default = None,
                   **kwargs):
-        p = Parameter(self, name, description, default, **kwargs)
-        self.named[name] = p
-        return p
+        return self.params.declare(name, description = description,
+                                   default = default, **kwargs)
 
     def default(self, what, **kwargs):
         def decorator(f):
@@ -106,8 +90,8 @@ class Job(object):
         for key in sorted(self.config):
             print("  %s: %s" % (key, strfy(self.config[key])))
         print("Parameters:")
-        for key in sorted(self.PARAMETERS):
-            print("  %s: %s" % (key, strfy(self.PARAMETERS[key])))
+        for key in sorted(self.params):
+            print("  %s: %s" % (key, strfy(self.params[key])))
 
     def start(self, **kwargs):
         self.print_banner("Preparing Job")
@@ -116,16 +100,10 @@ class Job(object):
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
         for k in kwargs:
-            self.PARAMETERS[k] = kwargs[k]
+            self.params[k] = kwargs[k]
         # Set default parameters
-        for name in self.named:
-            obj = self.named[name]
-            if issubclass(Parameter, obj.__class__):
-                if not name in self.PARAMETERS and obj.default:
-                    if type(obj.default) is types.FunctionType:
-                        self.PARAMETERS[name] = obj.default()
-                    else:
-                        self.PARAMETERS[name] = obj.default
+        for param in self.params.declared():
+            param.evaluate()
         self.print_vars()
         self.print_banner("Starting Job")
         self.mainfn()
@@ -158,7 +136,7 @@ class Job(object):
     def get_var(self, name, args = {}):
         value = args.get(name)
         if not value:
-            value = self.PARAMETERS.get(name)
+            value = self.params.get(name)
         if not value:
             value = self.env.get(name)
         if not value:
@@ -167,11 +145,3 @@ class Job(object):
 
     def error(self, what):
         raise JobException(what)
-
-    def info(self):
-        print("Job %s with main = %s" % (self.import_name, self.mainfn))
-        print("Parameters:")
-        for name in self.named:
-            obj = self.named[name]
-            if issubclass(Parameter, obj.__class__):
-                print("  %s: %s" % (name, obj))
