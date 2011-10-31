@@ -12,6 +12,7 @@ from datetime import datetime
 from .config import Config
 from .environment import Environment
 from .params import Parameters
+from .node import Node
 
 re_var = re.compile("{{(.*?)}}")
 
@@ -25,14 +26,23 @@ class Step(object):
         self.job = job
         self.name = name
         self.fun = fun
+        self.detached_jobs = []
 
     def __call__(self, *args, **kwargs):
+        self.job.current_step = self
         self.job.print_banner("Step: '%s'" % self.name)
-        return self.fun(*args, **kwargs)
+        ret = self.fun(*args, **kwargs)
+        # Wait for any detached jobs
+        for job in self.detached_jobs:
+            job.join()
+        self.detached_jobs = []
+        return ret
 
     def run_detached(self, *args, **kwargs):
         self.job.print_banner("Detach: '%s'" % self.name)
-        return self.fun(*args, **kwargs)
+        node = self.job.allocate_node()
+        rjob = node.run(self.job, self.fun, args, kwargs)
+        self.job.current_step.detached_jobs.append(rjob)
 
 
 class Job(object):
@@ -48,6 +58,16 @@ class Job(object):
         self.set_default_env()
         self.master_url = os.environ.get("SCI_MASTER_URL")
         self.job_key = os.environ.get("SCI_JOB_KEY")
+        self.spawned_sub_nodes = 0
+        self.current_step = None
+
+    def allocate_node(self):
+        if self.master_url is None:
+            # Can not allocate a node - use local node
+            self.spawned_sub_nodes += 1
+            return Node("%s.%s" % (self.env["SCI_SERVER_ID"],
+                                   self.spawned_sub_nodes),
+                        "local", None)
 
     def set_description(self, description):
         self.description = description
@@ -122,11 +142,30 @@ class Job(object):
         if self.config.from_env("SCI_CONFIG"):
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
-        self.params.evaluate(initial = kwargs)
+        # Set parameters given to 'start':
+        for k in kwargs:
+            self.params[k] = kwargs[k]
+        self.params.evaluate()
         self.print_vars()
         self.print_banner("Starting Job", dash = "=")
         self.mainfn()
         self.print_banner("Job Finished", dash = "=")
+
+    def start_subjob(self, fun, args, kwargs, env, params, config, node_id):
+        self.start_time = time.time()
+        for k in env:
+            self.env[k] = env[k]
+        for k in params:
+            self.params[k] = params[k]
+        for k in config:
+            self.config[k] = config[k]
+        self.env["SCI_SERVER_ID"] = node_id
+
+        self.print_banner("Starting Detached Job", dash = "=")
+        for step in self.steps:
+            if step[1].__name__ == fun:
+                step[1](*args, **kwargs)
+        self.print_banner("Detached Job Finished", dash = "=")
 
     def store(self, filename):
         if self.debug:
@@ -139,6 +178,7 @@ class Job(object):
     def run(self, cmd, args = {}, **kwargs):
         if self.debug:
             print("Running CMD '%s'" % self.format(cmd, args))
+        time.sleep(0.1)
 
     def format(self, tmpl, args = {}):
         while True:
