@@ -7,7 +7,7 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import types, re, os
+import types, re, os, socket
 from .config import Config
 from .environment import Environment
 from .params import Parameters
@@ -52,6 +52,13 @@ class Job(object):
                   **kwargs):
         return self.params.declare(name, description = description,
                                    default = default, **kwargs)
+
+    def set_default_env(self):
+        # Set hostname
+        hostname = socket.gethostname()
+        if hostname.endswith(".local"):
+            hostname = hostname[:-len(".local")]
+        self.env["SCI_HOSTNAME"] = hostname
 
     def default(self, what, **kwargs):
         def decorator(f):
