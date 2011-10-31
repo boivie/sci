@@ -10,6 +10,10 @@
 import types
 
 
+class ParameterError(Exception):
+    pass
+
+
 class Parameter(object):
     def __init__(self, params, name, **kwargs):
         self.params = params
@@ -42,3 +46,23 @@ class Parameters(dict):
 
     def declared(self):
         return self.__declared
+
+    def evaluate(self, initial = {}):
+        # Sanity check
+        for p in self.__declared:
+            if p.required and p.default:
+                raise ParameterError("You can not specify a default value" +
+                                     "for a required parameter")
+        # Set initial values
+        for k in initial:
+            self[k] = initial[k]
+
+        # Verify that all required parameters are set
+        for p in self.__declared:
+            if p.required and not p.name in self:
+                raise ParameterError("Required parameter not set: " +
+                                     "'%s'" % p.name)
+
+        # Use default parameters if necessary
+        for param in self.declared():
+            param.evaluate()

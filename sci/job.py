@@ -99,11 +99,7 @@ class Job(object):
         if self.config.from_env("SCI_CONFIG"):
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
-        for k in kwargs:
-            self.params[k] = kwargs[k]
-        # Set default parameters
-        for param in self.params.declared():
-            param.evaluate()
+        self.params.evaluate(initial = kwargs)
         self.print_vars()
         self.print_banner("Starting Job")
         self.mainfn()
