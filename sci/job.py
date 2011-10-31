@@ -7,7 +7,7 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import types, re
+import types, re, os
 from .config import Config
 from .environment import Environment
 
@@ -90,11 +90,30 @@ class Job(object):
             return f
         return decorator
 
-    def start(self, **kwargs):
-        print("Starting %s" % (self.import_name))
+    @classmethod
+    def print_banner(cls, text):
+        dash_left = (80 - len(text) - 4) / 2
+        dash_right = 80 - len(text) - 4 - dash_left
+        print("%s[ %s ]%s" % ("=" * dash_left, text, "=" * dash_right))
 
+    def print_vars(self):
+        def strfy(v):
+            if (type(v)) in types.StringTypes:
+                return "'%s'" % v
+            return str(v)
+        # Print out all parameters, config and the environment
+        print("Configuration Values:")
+        for key in sorted(self.config):
+            print("  %s: %s" % (key, strfy(self.config[key])))
+        print("Parameters:")
+        for key in sorted(self.PARAMETERS):
+            print("  %s: %s" % (key, strfy(self.PARAMETERS[key])))
+
+    def start(self, **kwargs):
+        self.print_banner("Preparing Job")
         # Read global config file
-        self.config.from_env("SCI_CONFIG")
+        if self.config.from_env("SCI_CONFIG"):
+            print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
         for k in kwargs:
             self.PARAMETERS[k] = kwargs[k]
@@ -107,8 +126,10 @@ class Job(object):
                         self.PARAMETERS[name] = obj.default()
                     else:
                         self.PARAMETERS[name] = obj.default
+        self.print_vars()
+        self.print_banner("Starting Job")
         self.mainfn()
-        print("All done.")
+        self.print_banner("Job Finished")
 
     def store(self, filename):
         if self.debug:
