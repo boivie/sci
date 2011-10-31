@@ -3,17 +3,21 @@ from sci import Job
 
 job = Job(__name__)
 
-branch = job.parameter("BRANCH", "Manifest branch", required = True)
+# Parameters - to allow a GUI to easily list them
+branch          = job.parameter("BRANCH", "Manifest branch", required = True)
 build_id_prefix = job.parameter("BUILD_ID_PREFIX", "The build ID prefix to use")
-manifest_file = job.parameter("MANIFEST_FILE", "Manifest Filename",
-                              default = "default.xml")
-products = job.parameter("PRODUCTS", "Products to build", type = "array")
-variants = job.parameter("VARIANTS", "Variants to build", type = "array",
-                         default = ["eng", "userdebug", "user"])
+manifest_file   = job.parameter("MANIFEST_FILE", "Manifest Filename",
+                                default = "default.xml")
+products        = job.parameter("PRODUCTS", "Products to build", type = "array")
+variants        = job.parameter("VARIANTS", "Variants to build", type = "array",
+                                default = ["eng", "userdebug", "user"])
 
 
 @job.default(products)
 def get_products():
+    """A function that will be evaluated to get the default
+       value for 'products' in case it's not specified"""
+
     if "donut" in branch():
         return ["g1", "emulator"]
     if "eclair" in branch():
@@ -30,26 +34,21 @@ def default_build_id_prefix():
 
 @job.step("Create Build ID")
 def create_build_id():
-    return build_id_prefix() + "_" + time.strftime("%y%m%d_%H%M%S")
+    """A very simple step"""
+    build_id = build_id_prefix() + "_" + time.strftime("%y%m%d_%H%M%S")
+    return build_id
 
 
 @job.step("Create Static Manifest")
 def create_manifest():
+    """These commands will automatically run in a temporary directory
+       that will be wiped once the entire job finishes"""
     job.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}} -m {{MANIFEST_FILE}}")
     job.run("repo sync --jobs={{SYNC_JOBS}}", name = "sync")
     job.run("repo manifest -r -o static_manifest.xml")
 
+    # Upload the result of this step to the 'file storage node'
     job.store("static_manifest.xml")
-
-
-@job.step("ZIP resulted files")
-def zip_result():
-    zip_file = job.format("result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip")
-    out_path = job.format("out/target/product/{{PRODUCT}}")
-
-    job.run("zip {{zip_file}} {{out_path}}/*.img",
-            args = {"zip_file": zip_file, "out_path": out_path})
-    return zip_file
 
 
 @job.step("Get source code")
@@ -68,8 +67,20 @@ make -j{{jobs}}""",
             args = {"jobs": job.get_var("JOB_CPUS") + 1})
 
 
+@job.step("ZIP resulted files")
+def zip_result():
+    zip_file = job.format("result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip")
+    out_path = job.format("out/target/product/{{PRODUCT}}")
+
+    job.run("zip {{zip_file}} {{out_path}}/*.img",
+            args = {"zip_file": zip_file, "out_path": out_path})
+    return zip_file
+
+
 @job.step("Run single matrix job")
 def run_single_matrix_job(product, variant):
+    """This job will be running on a separate machine, in parallel with
+       a lot of other similar jobs. It will perform a few build steps."""
     job.env["PRODUCT"] = product
     job.env["VARIANT"] = variant
     job.get_stored("static_manifest.xml")
@@ -82,6 +93,9 @@ def run_single_matrix_job(product, variant):
 
 @job.step("Run matrix jobs")
 def run_matrix_jobs():
+    """The run_detached function runs the step asynchronously on (possibly)
+       another nodes. This step will wait for all the detached jobs to
+       finish before it returns."""
     comb = itertools.product(products(), variants())
     for product, variant in comb:
         run_single_matrix_job.run_detached(product, variant)
@@ -93,7 +107,8 @@ def send_report():
 
 
 @job.main()
-def run():
+def main():
+    """This is the job's entry point."""
     job.env["BUILD_ID"] = create_build_id()
     job.set_description(job.env["BUILD_ID"])
     create_manifest()
@@ -101,5 +116,5 @@ def run():
     send_report()
 
 
-print(job.info())
-job.start(BRANCH = sys.argv[1])
+if __name__ == "__main__":
+    job.start(BRANCH = sys.argv[1])
