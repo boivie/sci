@@ -13,6 +13,13 @@ variants        = job.parameter("VARIANTS", "Variants to build", type = "array",
                                 default = ["eng", "userdebug", "user"])
 
 
+# This job works as follows    <-- run single matrix job *3 -->
+#                           / get source -> build android -> zip \
+#  create   ->  create  -> -  get source -> build android -> zip  -  create
+# build id     manifest     \ get source -> build android -> zip /   report
+#                          <<--------- run matrix jobs ---------->>
+
+
 @job.default(products)
 def get_products():
     """A function that will be evaluated to get the default
