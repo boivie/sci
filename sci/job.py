@@ -34,7 +34,7 @@ class Step(object):
         ret = self.fun(*args, **kwargs)
         # Wait for any detached jobs
         for job in self.detached_jobs:
-            job.join()
+            job.wait()
         self.detached_jobs = []
         return ret
 
