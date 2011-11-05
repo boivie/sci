@@ -7,11 +7,12 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import types, re, os, socket, time
+from optparse import OptionParser
+import types, re, os, socket, time, sys
 from datetime import datetime
 from .config import Config
 from .environment import Environment
-from .params import Parameters
+from .params import Parameters, ParameterError
 from .node import Node
 
 re_var = re.compile("{{(.*?)}}")
@@ -134,7 +135,30 @@ class Job(object):
         for key in sorted(self.env):
             print("  %s: %s" % (key, strfy(self.env[key])))
 
-    def start(self, **kwargs):
+    def parse_arguments(self):
+        # Parse parameters
+        parser = OptionParser()
+        parser.add_option("-c", "--config", dest = "config",
+                          help = "configuration file to use")
+        parser.add_option("--list-parameters", dest = "list_parameters",
+                          action = "store_true",
+                          help = "List job parameters and quit")
+        (opts, args) = parser.parse_args()
+        if opts.config:
+            self.config.from_pyfile(opts.config)
+        if opts.list_parameters:
+            self.params.print_help()
+            sys.exit(2)
+        # Parse parameters specified as args:
+        for arg in args:
+            if "=" in arg:
+                k, v = arg.split("=", 2)
+                self.params[k] = v
+        return opts, args
+
+    def start(self, use_argv = True, **kwargs):
+        if use_argv:
+            opts, args = self.parse_arguments()
         # Must set time first. It's used when printing
         self.start_time = time.time()
         self.print_banner("Preparing Job", dash = "=")
@@ -145,7 +169,14 @@ class Job(object):
         # Set parameters given to 'start':
         for k in kwargs:
             self.params[k] = kwargs[k]
-        self.params.evaluate()
+
+        try:
+            self.params.evaluate()
+        except ParameterError as e:
+            print("error: %s " % e)
+            print("")
+            print("Run with --list-parameters to list them.")
+            sys.exit(2)
         self.print_vars()
         self.print_banner("Starting Job", dash = "=")
         self.mainfn()

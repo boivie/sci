@@ -66,3 +66,22 @@ class Parameters(dict):
         # Use default parameters if necessary
         for param in self.declared():
             param.evaluate()
+
+    def print_help(self):
+        print("Parameters declared for this job:")
+        for p in self.declared():
+            s = p.name
+            if p.required:
+                s += " [required]"
+            elif p.default:
+                if type(p.default) is types.FunctionType:
+                    s += " (*)"
+                else:
+                    s += " (%s)" % p.default
+            if len(s) > 28:
+                print("  " + s)
+                print("  " + " " * 30 + p.description)
+            else:
+                print("  %s%s%s" % (s, " " * max(2, 30 - len(s)), p.description))
+        print("")
+        print("Parameters marked with (*) will be calculated if not set.")

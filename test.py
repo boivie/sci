@@ -1,4 +1,4 @@
-import time, itertools, sys
+import time, itertools
 from sci import Job
 
 job = Job(__name__, debug = True)
@@ -124,4 +124,4 @@ def main():
 
 
 if __name__ == "__main__":
-    job.start(BRANCH = sys.argv[1])
+    job.start()
