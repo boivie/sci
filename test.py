@@ -70,8 +70,8 @@ def build_android():
     job.run("""
 . build/envsetup.sh
 lunch {{PRODUCT}}-{{VARIANT}}
-make -j{{jobs}}""",
-            args = {"jobs": job.get_var("JOB_CPUS") + 1})
+make -j{{JOBS}}""",
+            JOBS = job.get_var("JOB_CPUS") + 1)
 
 
 @job.step("ZIP resulted files")

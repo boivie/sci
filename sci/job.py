@@ -200,18 +200,18 @@ class Job(object):
                 step[1](*args, **kwargs)
         self.print_banner("Detached Job Finished", dash = "=")
 
-    def run(self, cmd, args = {}, **kwargs):
+    def run(self, cmd, **kwargs):
         if self.debug:
-            print("Running CMD '%s'" % self.format(cmd, args))
+            print("Running CMD '%s'" % self.format(cmd, **kwargs))
         time.sleep(0.1)
 
-    def format(self, tmpl, args = {}):
+    def format(self, tmpl, **kwargs):
         while True:
             m = re_var.search(tmpl)
             if not m:
                 break
             name = m.groups()[0]
-            value = self.get_var(name, args = args)
+            value = self.get_var(name, args = kwargs)
             if not value:
                 self.error("Failed to replace template variable %s" % name)
             tmpl = tmpl.replace("{{%s}}" % name, str(value))
