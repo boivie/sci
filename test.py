@@ -114,7 +114,7 @@ def send_report():
 def main():
     """This is the job's entry point."""
     job.env["BUILD_ID"] = create_build_id()
-    job.set_description(job.env["BUILD_ID"])
+    job.description = "{{BUILD_ID}}"
     create_manifest()
     run_matrix_jobs()
     send_report()

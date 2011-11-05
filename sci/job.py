@@ -52,7 +52,7 @@ class Job(object):
         self.import_name = import_name
         self.steps = []
         self.mainfn = None
-        self.description = ""
+        self._description = ""
         self.params = Parameters()
         self.config = Config()
         self.env = Environment()
@@ -73,7 +73,12 @@ class Job(object):
                         "local", None)
 
     def set_description(self, description):
-        self.description = description
+        self._description = self.format(description)
+
+    def get_description(self):
+        return self._description
+
+    description = property(get_description, set_description)
 
     def parameter(self, name, description = "", default = None,
                   **kwargs):
