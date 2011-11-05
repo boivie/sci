@@ -55,7 +55,7 @@ def create_manifest():
     job.run("repo manifest -r -o static_manifest.xml")
 
     # Upload the result of this step to the 'file storage node'
-    job.store("static_manifest.xml")
+    job.artifacts.add("static_manifest.xml")
 
 
 @job.step("Get source code")
@@ -77,11 +77,9 @@ make -j{{jobs}}""",
 @job.step("ZIP resulted files")
 def zip_result():
     zip_file = job.format("result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip")
-    out_path = job.format("out/target/product/{{PRODUCT}}")
+    input_files = job.format("out/target/product/{{PRODUCT}}/*.img")
 
-    job.run("zip {{zip_file}} {{out_path}}/*.img",
-            args = {"zip_file": zip_file, "out_path": out_path})
-    return zip_file
+    job.artifacts.create_zip(zip_file, input_files)
 
 
 @job.step("Run single matrix job")
@@ -90,12 +88,11 @@ def run_single_matrix_job(product, variant):
        a lot of other similar jobs. It will perform a few build steps."""
     job.env["PRODUCT"] = product
     job.env["VARIANT"] = variant
-    job.get_stored("static_manifest.xml")
+    job.artifacts.get("static_manifest.xml")
 
     get_source()
     build_android()
-    zip_file = zip_result()
-    job.store(zip_file)
+    zip_result()
 
 
 @job.step("Run matrix jobs")

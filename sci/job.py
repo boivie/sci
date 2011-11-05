@@ -14,6 +14,7 @@ from .config import Config
 from .environment import Environment
 from .params import Parameters, ParameterError
 from .node import Node
+from .artifacts import Artifacts
 
 re_var = re.compile("{{(.*?)}}")
 
@@ -55,6 +56,7 @@ class Job(object):
         self.params = Parameters()
         self.config = Config()
         self.env = Environment()
+        self.artifacts = Artifacts(self)
         self.debug = debug
         self.set_default_env()
         self.master_url = os.environ.get("SCI_MASTER_URL")
@@ -197,14 +199,6 @@ class Job(object):
             if step[1].__name__ == fun:
                 step[1](*args, **kwargs)
         self.print_banner("Detached Job Finished", dash = "=")
-
-    def store(self, filename):
-        if self.debug:
-            print("Storing '%s' on the storage node" % filename)
-
-    def get_stored(self, filename):
-        if self.debug:
-            print("Retrieving stored '%s' from the storage node" % filename)
 
     def run(self, cmd, args = {}, **kwargs):
         if self.debug:
