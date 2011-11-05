@@ -17,15 +17,20 @@ class Artifacts(object):
     def __init__(self, job):
         self.job = job
 
-    def add(self, filename):
+    def add(self, filename, **kwargs):
+        filename = self.job.format(filename, **kwargs)
         if self.job.debug:
             print("Storing '%s' on the storage node" % filename)
 
-    def get(self, filename):
+    def get(self, filename, **kwargs):
+        filename = self.job.format(filename, **kwargs)
         if self.job.debug:
             print("Retrieving stored '%s' from the storage node" % filename)
 
-    def create_zip(self, zip_filename, input_files):
+    def create_zip(self, zip_filename, input_files, **kwargs):
+        zip_filename = self.job.format(zip_filename, **kwargs)
+        input_files = self.job.format(input_files, **kwargs)
+
         if self.job.debug:
             print("Zipping '%s' and storing as %s" % \
                       (input_files, zip_filename))

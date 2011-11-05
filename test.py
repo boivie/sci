@@ -76,8 +76,8 @@ make -j{{JOBS}}""",
 
 @job.step("ZIP resulted files")
 def zip_result():
-    zip_file = job.format("result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip")
-    input_files = job.format("out/target/product/{{PRODUCT}}/*.img")
+    zip_file = "result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip"
+    input_files = "out/target/product/{{PRODUCT}}/*.img"
 
     job.artifacts.create_zip(zip_file, input_files)
 
