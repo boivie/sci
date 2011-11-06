@@ -178,12 +178,11 @@ class Job(object):
                 self.params[k] = v
         return opts, args
 
-    def start(self, use_argv = True, params = {}):
-        # No session set?
-        if not self.session:
-            self.session = Session()
+    def _start(self, entrypoint, session = None, use_argv = True, params = {}, env = {}, config = {}, validate_params = False, args = [], kwargs = {}):
+        if session:
+            self.session = session
         if use_argv:
-            opts, args = self.parse_arguments()
+            opts, _ = self.parse_arguments()
         # Must set time first. It's used when printing
         self.start_time = time.time()
         self.print_banner("Preparing Job", dash = "=")
@@ -191,37 +190,37 @@ class Job(object):
         if self.config.from_env("SCI_CONFIG"):
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
-        # Set parameters given to 'start':
-        for k in params:
-            self.params[k] = params[k]
-
-        try:
-            self.params.evaluate()
-        except ParameterError as e:
-            print("error: %s " % e)
-            print("")
-            print("Run with --list-parameters to list them.")
-            sys.exit(2)
-        self.print_vars()
-        self.print_banner("Starting Job", dash = "=")
-        self.mainfn()
-        self.print_banner("Job Finished", dash = "=")
-
-    def start_subjob(self, session, entrypoint, args, kwargs,
-                     env, params, config, node_id):
-        self.session = session
-        self.start_time = time.time()
+        # Override parameters/env/config
         for k in env:
             self.env[k] = env[k]
         for k in params:
             self.params[k] = params[k]
         for k in config:
             self.config[k] = config[k]
-        self.env["SCI_SERVER_ID"] = node_id
 
-        self.print_banner("Starting Detached Job", dash = "=")
+        if validate_params:
+            try:
+                self.params.evaluate()
+            except ParameterError as e:
+                print("error: %s " % e)
+                print("")
+                print("Run with --list-parameters to list them.")
+                sys.exit(2)
+        self.print_vars()
+        self.print_banner("Starting Job", dash = "=")
         entrypoint(*args, **kwargs)
-        self.print_banner("Detached Job Finished", dash = "=")
+        self.print_banner("Job Finished", dash = "=")
+
+    def start(self, use_argv = True, params = {}):
+        return self._start(self.mainfn, session = Session(),
+                           use_argv = use_argv, params = params,
+                           validate_params = True)
+
+    def start_subjob(self, session, entrypoint, args, kwargs,
+                     env, params, config, node_id):
+        return self._start(entrypoint, session = session,
+                           params = params, env = env, config = config,
+                           args = args, kwargs = kwargs)
 
     def run(self, cmd, **kwargs):
         if self.debug:
