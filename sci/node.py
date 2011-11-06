@@ -8,6 +8,16 @@
     :license: Apache License 2.0
 """
 import sys, subprocess, json
+from .session import Session
+
+
+class DetachedJob(object):
+    def __init__(self, proc, node_id):
+        self.proc = proc
+        self.node_id = node_id
+
+    def join(self):
+        self.proc.wait()
 
 
 class Node(object):
@@ -27,11 +37,20 @@ class Node(object):
                 "params": dict(job.params),
                 "config": dict(job.config)}
 
+    def run_remote(self, data):
+        # Create a session
+        session = Session.create()
+        d = json.loads(data)
+        d["sid"] = session.id
+        args = ["./run_job.py"]
+        stdout = open(session.logfile, "w")
+        proc = subprocess.Popen(args, stdin = subprocess.PIPE,
+                                stdout = stdout, stderr = subprocess.STDOUT)
+        proc.stdin.write(json.dumps(d))
+        proc.stdin.close()
+        return DetachedJob(proc, self.node_id)
+
     def run(self, job, fun, args, kwargs):
         """Runs a job on this node."""
         data = self._serialize(job, fun, args, kwargs)
-        args = ["./run_job.py"]
-        proc = subprocess.Popen(args, stdin = subprocess.PIPE)
-        proc.stdin.write(json.dumps(data))
-        proc.stdin.close()
-        return proc
+        return self.run_remote(json.dumps(data))

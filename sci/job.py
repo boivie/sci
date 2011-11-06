@@ -15,6 +15,7 @@ from .environment import Environment
 from .params import Parameters, ParameterError
 from .node import Node
 from .artifacts import Artifacts
+from .session import Session
 
 re_var = re.compile("{{(.*?)}}")
 
@@ -36,13 +37,14 @@ class Step(object):
         ret = self.fun(*args, **kwargs)
         # Wait for any detached jobs
         for job in self.detached_jobs:
-            job.wait()
+            job.join()
+            self.job.print_banner("%s finished" % job.node_id)
         self.detached_jobs = []
         return ret
 
     def run_detached(self, *args, **kwargs):
-        self.job.print_banner("Detach: '%s'" % self.name)
         node = self.job.allocate_node()
+        self.job.print_banner("Detach: '%s' -> %s" % (self.name, node.node_id))
         rjob = node.run(self.job, self.fun, args, kwargs)
         self.job.current_step.detached_jobs.append(rjob)
 
@@ -50,6 +52,8 @@ class Step(object):
 class Job(object):
     def __init__(self, import_name, debug = False):
         self.import_name = import_name
+        # The session is known when running - not this early
+        self._session = None
         self.steps = []
         self.mainfn = None
         self._description = ""
@@ -79,6 +83,16 @@ class Job(object):
         return self._description
 
     description = property(get_description, set_description)
+
+    def set_session(self, session):
+        if self._session:
+            raise JobException("The session can only be set once")
+        self._session = session
+
+    def get_session(self):
+        return self._session
+
+    session = property(get_session, set_session)
 
     def parameter(self, name, description = "", default = None,
                   **kwargs):
@@ -132,6 +146,7 @@ class Job(object):
                 return "'%s'" % v
             return str(v)
         # Print out all parameters, config and the environment
+        print("Session ID: %s" % self.session.id)
         print("Configuration Values:")
         for key in sorted(self.config):
             print("  %s: %s" % (key, strfy(self.config[key])))
@@ -163,7 +178,10 @@ class Job(object):
                 self.params[k] = v
         return opts, args
 
-    def start(self, use_argv = True, **kwargs):
+    def start(self, use_argv = True, params = {}):
+        # No session set?
+        if not self.session:
+            self.session = Session()
         if use_argv:
             opts, args = self.parse_arguments()
         # Must set time first. It's used when printing
@@ -174,8 +192,8 @@ class Job(object):
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
         # Set parameters given to 'start':
-        for k in kwargs:
-            self.params[k] = kwargs[k]
+        for k in params:
+            self.params[k] = params[k]
 
         try:
             self.params.evaluate()
@@ -189,7 +207,9 @@ class Job(object):
         self.mainfn()
         self.print_banner("Job Finished", dash = "=")
 
-    def start_subjob(self, fun, args, kwargs, env, params, config, node_id):
+    def start_subjob(self, session, entrypoint, args, kwargs,
+                     env, params, config, node_id):
+        self.session = session
         self.start_time = time.time()
         for k in env:
             self.env[k] = env[k]
@@ -200,9 +220,7 @@ class Job(object):
         self.env["SCI_SERVER_ID"] = node_id
 
         self.print_banner("Starting Detached Job", dash = "=")
-        for step in self.steps:
-            if step[1].__name__ == fun:
-                step[1](*args, **kwargs)
+        entrypoint(*args, **kwargs)
         self.print_banner("Detached Job Finished", dash = "=")
 
     def run(self, cmd, **kwargs):
