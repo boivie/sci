@@ -32,48 +32,48 @@ class Step(object):
         self.detached_jobs = []
 
     def __call__(self, *args, **kwargs):
-        self.job.current_step = self
-        self.job.print_banner("Step: '%s'" % self.name)
+        self.job._current_step = self
+        self.job._print_banner("Step: '%s'" % self.name)
         ret = self.fun(*args, **kwargs)
         # Wait for any detached jobs
         for job in self.detached_jobs:
             job.join()
-            self.job.print_banner("%s finished" % job.node_id)
+            self.job._print_banner("%s finished" % job.node_id)
         self.detached_jobs = []
         return ret
 
     def run_detached(self, *args, **kwargs):
-        node = self.job.allocate_node()
-        self.job.print_banner("Detach: '%s' -> %s" % (self.name, node.node_id))
+        node = self.job._allocate_node()
+        self.job._print_banner("Detach: '%s' -> %s" % (self.name, node.node_id))
         rjob = node.run(self.job, self.fun, args, kwargs)
-        self.job.current_step.detached_jobs.append(rjob)
+        self.job._current_step.detached_jobs.append(rjob)
 
 
 class Job(object):
     def __init__(self, import_name, debug = False):
-        self.import_name = import_name
+        self._import_name = import_name
         # The session is known when running - not this early
         self._session = None
         self.steps = []
-        self.mainfn = None
+        self._mainfn = None
         self._description = ""
         self.params = Parameters()
         self.config = Config()
         self.env = Environment()
         self.artifacts = Artifacts(self)
         self.debug = debug
-        self.set_default_env()
-        self.master_url = os.environ.get("SCI_MASTER_URL")
-        self.job_key = os.environ.get("SCI_JOB_KEY")
-        self.spawned_sub_nodes = 0
-        self.current_step = None
+        self._set_default_env()
+        self._master_url = os.environ.get("SCI_MASTER_URL")
+        self._job_key = os.environ.get("SCI_JOB_KEY")
+        self._spawned_sub_nodes = 0
+        self._current_step = None
 
-    def allocate_node(self):
-        if self.master_url is None:
+    def _allocate_node(self):
+        if self._master_url is None:
             # Can not allocate a node - use local node
-            self.spawned_sub_nodes += 1
+            self._spawned_sub_nodes += 1
             return LocalNode("%s.%s" % (self.env["SCI_SERVER_ID"],
-                                        self.spawned_sub_nodes),
+                                        self._spawned_sub_nodes),
                              "local", None)
 
     def set_description(self, description):
@@ -99,7 +99,7 @@ class Job(object):
         return self.params.declare(name, description = description,
                                    default = default, **kwargs)
 
-    def set_default_env(self):
+    def _set_default_env(self):
         # Set hostname
         hostname = socket.gethostname()
         if hostname.endswith(".local"):
@@ -108,6 +108,8 @@ class Job(object):
         self.env["SCI_SERVER_ID"] = os.environ.get("SCI_SERVER_ID", "S0")
         now = datetime.now()
         self.env["SCI_DATETIME"] = now.strftime("%Y-%m-%d_%H-%M-%S")
+
+    ### Decorators ###
 
     def default(self, what, **kwargs):
         def decorator(f):
@@ -123,24 +125,24 @@ class Job(object):
 
     def main(self, **kwargs):
         def decorator(f):
-            self.mainfn = f
+            self._mainfn = f
             return f
         return decorator
 
-    def timestr(self):
+    def _timestr(self):
         delta = int(time.time() - self.start_time)
         if delta > 59:
             return "%dm%d" % (delta / 60, delta % 60)
         return "%d" % delta
 
-    def print_banner(self, text, dash = "-"):
-        prefix = "[%s +%s]" % (self.env["SCI_SERVER_ID"], self.timestr())
+    def _print_banner(self, text, dash = "-"):
+        prefix = "[%s +%s]" % (self.env["SCI_SERVER_ID"], self._timestr())
         dash_left = (80 - len(text) - 4 - len(prefix)) / 2
         dash_right = 80 - len(text) - 4 - len(prefix) - dash_left
         print("%s%s[ %s ]%s" % (prefix, dash * dash_left,
                                  text, dash * dash_right))
 
-    def print_vars(self):
+    def _print_vars(self):
         def strfy(v):
             if (type(v)) in types.StringTypes:
                 return "'%s'" % v
@@ -157,7 +159,7 @@ class Job(object):
         for key in sorted(self.env):
             print("  %s: %s" % (key, strfy(self.env[key])))
 
-    def parse_arguments(self):
+    def _parse_arguments(self):
         # Parse parameters
         parser = OptionParser()
         parser.add_option("-c", "--config", dest = "config",
@@ -182,10 +184,10 @@ class Job(object):
         if session:
             self.session = session
         if use_argv:
-            opts, _ = self.parse_arguments()
+            opts, _ = self._parse_arguments()
         # Must set time first. It's used when printing
         self.start_time = time.time()
-        self.print_banner("Preparing Job", dash = "=")
+        self._print_banner("Preparing Job", dash = "=")
         # Read global config file
         if self.config.from_env("SCI_CONFIG"):
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
@@ -206,13 +208,13 @@ class Job(object):
                 print("")
                 print("Run with --list-parameters to list them.")
                 sys.exit(2)
-        self.print_vars()
-        self.print_banner("Starting Job", dash = "=")
+        self._print_vars()
+        self._print_banner("Starting Job", dash = "=")
         entrypoint(*args, **kwargs)
-        self.print_banner("Job Finished", dash = "=")
+        self._print_banner("Job Finished", dash = "=")
 
     def start(self, use_argv = True, params = {}):
-        return self._start(self.mainfn, session = Session(),
+        return self._start(self._mainfn, session = Session(),
                            use_argv = use_argv, params = params,
                            validate_params = True)
 

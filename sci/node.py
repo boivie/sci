@@ -27,7 +27,7 @@ class Node(object):
     def _serialize(self, job, fun, args, kwargs):
         return {"node_id": self.node_id,
                 "funname": fun.__name__,
-                "jobfname": sys.modules[job.import_name].__file__,
+                "jobfname": sys.modules[job._import_name].__file__,
                 "args": args,
                 "kwargs": kwargs,
                 "env": dict(job.env),
