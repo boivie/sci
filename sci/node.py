@@ -12,20 +12,17 @@ from .session import Session
 
 
 class DetachedJob(object):
-    def __init__(self, proc, node_id):
-        self.proc = proc
+    def __init__(self, node_id):
         self.node_id = node_id
 
     def join(self):
-        self.proc.wait()
+        raise NotImplemented()
 
 
 class Node(object):
     """Represents a node"""
     def __init__(self, node_id, server_url, node_key):
         self.node_id = node_id
-        self.server_url = server_url
-        self.node_key = node_key
 
     def _serialize(self, job, fun, args, kwargs):
         return {"node_id": self.node_id,
@@ -38,6 +35,25 @@ class Node(object):
                 "config": dict(job.config)}
 
     def run_remote(self, data):
+        raise NotImplemented()
+
+    def run(self, job, fun, args, kwargs):
+        """Runs a job on this node."""
+        data = self._serialize(job, fun, args, kwargs)
+        return self.run_remote(json.dumps(data))
+
+
+class LocalDetachedJob(DetachedJob):
+    def __init__(self, node_id, proc):
+        super(LocalDetachedJob, self).__init__(node_id)
+        self.proc = proc
+
+    def join(self):
+        self.proc.wait()
+
+
+class LocalNode(Node):
+    def run_remote(self, data):
         # Create a session
         session = Session.create()
         d = json.loads(data)
@@ -48,9 +64,4 @@ class Node(object):
                                 stdout = stdout, stderr = subprocess.STDOUT)
         proc.stdin.write(json.dumps(d))
         proc.stdin.close()
-        return DetachedJob(proc, self.node_id)
-
-    def run(self, job, fun, args, kwargs):
-        """Runs a job on this node."""
-        data = self._serialize(job, fun, args, kwargs)
-        return self.run_remote(json.dumps(data))
+        return LocalDetachedJob(self.node_id, proc)

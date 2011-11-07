@@ -13,7 +13,7 @@ from datetime import datetime
 from .config import Config
 from .environment import Environment
 from .params import Parameters, ParameterError
-from .node import Node
+from .node import LocalNode
 from .artifacts import Artifacts
 from .session import Session
 
@@ -72,9 +72,9 @@ class Job(object):
         if self.master_url is None:
             # Can not allocate a node - use local node
             self.spawned_sub_nodes += 1
-            return Node("%s.%s" % (self.env["SCI_SERVER_ID"],
-                                   self.spawned_sub_nodes),
-                        "local", None)
+            return LocalNode("%s.%s" % (self.env["SCI_SERVER_ID"],
+                                        self.spawned_sub_nodes),
+                             "local", None)
 
     def set_description(self, description):
         self._description = self.format(description)
