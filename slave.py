@@ -10,7 +10,7 @@
 """
 from optparse import OptionParser
 import web, json, sys, os
-from sci.session import Session
+from sci.session import Session, time
 from sci.node import LocalNode
 
 urls = (
@@ -39,10 +39,13 @@ def before_request():
     if settings.job:
         retcode = settings.job.poll()
         if not retcode is None:
-            session = Session.load(settings.job.session_id)
-            session.return_code = retcode
-            session.state = "finished"
-            session.save()
+            print("Job terminated with return code %s" % retcode)
+            if retcode != 0:
+                # We never do that. It must have crashed - clear the session
+                session = Session.load(settings.job.session_id)
+                session.return_code = retcode
+                session.state = "finished"
+                session.save()
             settings.job = None
 
 
@@ -54,10 +57,25 @@ def abort(status, data):
 class GetSessionInfo:
     def GET(self, sid):
         before_request()
+        web.header('Content-Type', 'application/json')
         session = Session.load(sid)
         if not session:
             abort(404, "session not found")
-        return jsonify(state = session.state)
+
+        args = web.input(block = '0')
+        if args["block"] == '1':
+            i = 0
+            while True:
+                if settings.job is None:
+                    break
+                i += 1
+                if i % 10 == 0:
+                    yield "\n"
+                time.sleep(0.1)
+                before_request()
+
+        session = Session.load(sid)
+        yield json.dumps({"state": session.state})
 
 
 class StartJob:

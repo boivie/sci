@@ -13,7 +13,7 @@ from datetime import datetime
 from .config import Config
 from .environment import Environment
 from .params import Parameters, ParameterError
-from .node import LocalNode
+from .node import LocalNode, RemoteNode
 from .artifacts import Artifacts
 from .session import Session
 
@@ -68,7 +68,13 @@ class Job(object):
         self._spawned_sub_nodes = 0
         self._current_step = None
 
+        self.last_slave = 0
+
     def _allocate_node(self):
+        if 1 == 1:
+            self.last_slave += 1
+            return RemoteNode("S%d" % self.last_slave,
+                              "http://127.0.0.1:%d" % (6700 + self.last_slave))
         if self._master_url is None:
             # Can not allocate a node - use local node
             self._spawned_sub_nodes += 1
@@ -209,8 +215,9 @@ class Job(object):
                 sys.exit(2)
         self._print_vars()
         self._print_banner("Starting Job", dash = "=")
-        entrypoint(*args, **kwargs)
+        ret = entrypoint(*args, **kwargs)
         self._print_banner("Job Finished", dash = "=")
+        return ret
 
     def start(self, use_argv = True, params = {}):
         return self._start(self._mainfn, session = Session(),
@@ -226,7 +233,7 @@ class Job(object):
     def run(self, cmd, **kwargs):
         if self.debug:
             print("Running CMD '%s'" % self.format(cmd, **kwargs))
-        time.sleep(0.1)
+        time.sleep(1)
 
     def format(self, tmpl, **kwargs):
         while True:

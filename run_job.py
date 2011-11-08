@@ -23,8 +23,15 @@ for k in dir(d):
         if not entrypoint:
             job.error("No entry point given")
 
-        job.start_subjob(session,
-                         entrypoint, data["args"],
-                         data["kwargs"],
-                         data["env"], data["params"], data["config"],
-                         data["node_id"])
+        ret = job.start_subjob(session,
+                               entrypoint, data["args"],
+                               data["kwargs"],
+                               data["env"], data["params"], data["config"],
+                               data["node_id"])
+
+        # Reload session in case it has stopped - doubtful.
+        session = Session.load(data["sid"])
+        session.return_value = ret
+        session.return_code = 0  # We finished without exceptions.
+        session.state = "finished"
+        session.save()

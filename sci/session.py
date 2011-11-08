@@ -30,6 +30,7 @@ class Session(object):
         self.created = time.time()
         self.ended = 0
         self.return_code = None
+        self.return_value = None
 
     def save(self):
         with open(os.path.join(self.__path(self.id), "config.json"), "w") as f:

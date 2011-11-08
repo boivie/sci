@@ -82,6 +82,9 @@ class RemoteDetachedJob(DetachedJob):
         super(RemoteDetachedJob, self).__init__(session_id)
         self.client = client
 
+    def join(self):
+        self.client.call("/info/%s.json" % self.session_id, block = 1)
+
     def poll(self):
         ret = self.client.call("/info/%s.json" % self.session_id)
         if ret["state"] == "running":
