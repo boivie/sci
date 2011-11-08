@@ -38,7 +38,7 @@ class Step(object):
         # Wait for any detached jobs
         for job in self.detached_jobs:
             job.join()
-            self.job._print_banner("%s finished" % job.node_id)
+            self.job._print_banner("%s finished" % job.session_id)
         self.detached_jobs = []
         return ret
 
@@ -73,8 +73,7 @@ class Job(object):
             # Can not allocate a node - use local node
             self._spawned_sub_nodes += 1
             return LocalNode("%s.%s" % (self.env["SCI_SERVER_ID"],
-                                        self._spawned_sub_nodes),
-                             "local", None)
+                                        self._spawned_sub_nodes))
 
     def set_description(self, description):
         self._description = self.format(description)
