@@ -13,6 +13,11 @@
 """
 
 
+class Artifact(object):
+    def __init__(self, filename):
+        self.filename = filename
+
+
 class Artifacts(object):
     def __init__(self, job):
         self.job = job
@@ -21,6 +26,7 @@ class Artifacts(object):
         filename = self.job.format(filename, **kwargs)
         if self.job.debug:
             print("Storing '%s' on the storage node" % filename)
+        return Artifact(filename)
 
     def get(self, filename, **kwargs):
         filename = self.job.format(filename, **kwargs)
@@ -34,3 +40,4 @@ class Artifacts(object):
         if self.job.debug:
             print("Zipping '%s' and storing as %s" % \
                       (input_files, zip_filename))
+        return Artifact(zip_filename)
