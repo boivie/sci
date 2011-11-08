@@ -80,6 +80,7 @@ def zip_result():
     input_files = "out/target/product/{{PRODUCT}}/*.img"
 
     job.artifacts.create_zip(zip_file, input_files)
+    return job.format(zip_file)
 
 
 @job.step("Run single matrix job")
@@ -92,17 +93,22 @@ def run_single_matrix_job(product, variant):
 
     get_source()
     build_android()
-    zip_result()
+    return zip_result()
 
 
 @job.step("Run matrix jobs")
 def run_matrix_jobs():
-    """The run_detached function runs the step asynchronously on (possibly)
-       another nodes. This step will wait for all the detached jobs to
+    """The async function runs the step asynchronously on (possibly)
+       another node. This step will wait for all the detached jobs to
        finish before it returns."""
     comb = itertools.product(products(), variants())
+    jobs = []
     for product, variant in comb:
-        run_single_matrix_job.run_detached(product, variant)
+        job = run_single_matrix_job.async(product, variant)
+        jobs.append(job)
+
+    for job in jobs:
+        print("Result: " + job.get())
 
 
 @job.step("Send Report")

@@ -15,13 +15,51 @@ from .http_client import HttpClient
 class DetachedJob(object):
     def __init__(self, session_id):
         self.session_id = session_id
+        self._return_value = None
+        self._has_finished = False
 
     def join(self):
-        while not self.poll():
+        """Blocks until the job has finished.
+
+           Does not return anything."""
+        if self._has_finished:
+            return
+        self._join()
+
+    def _join(self):
+        """Method that should be overridden
+
+           When it finishes, it must call _finished()"""
+        while not self._poll():
             time.sleep(0.5)
 
+    def _finished(self, return_value):
+        self._return_value = return_value
+        self._has_finished = True
+
     def poll(self):
+        """Checks if the job has finished
+
+           Will return True if it has finished or False if it
+           still running. This function can be called multiple
+           times."""
+        if self._has_finished:
+            return True
+        return self._poll()
+
+    def _poll(self):
+        """Method that should be overridden
+
+           When it finishes, it must called _finished()"""
         raise NotImplemented()
+
+    def get(self):
+        """Returns the result value of the job.
+
+           It will block until the job is finished. Use 'poll'
+           to know when it's finished"""
+        self.join()
+        return self._return_value
 
 
 class Node(object):
@@ -53,10 +91,10 @@ class LocalDetachedJob(DetachedJob):
         super(LocalDetachedJob, self).__init__(session_id)
         self.proc = proc
 
-    def join(self):
-        return self.proc.wait()
+    def _join(self):
+        self.proc.wait()
 
-    def poll(self):
+    def _poll(self):
         return self.proc.poll()
 
 
@@ -82,13 +120,15 @@ class RemoteDetachedJob(DetachedJob):
         super(RemoteDetachedJob, self).__init__(session_id)
         self.client = client
 
-    def join(self):
-        self.client.call("/info/%s.json" % self.session_id, block = 1)
+    def _join(self):
+        ret = self.client.call("/info/%s.json" % self.session_id, block = 1)
+        self._finished(ret.get("return_value"))
 
-    def poll(self):
+    def _poll(self):
         ret = self.client.call("/info/%s.json" % self.session_id)
         if ret["state"] == "running":
             return False
+        self._finished(ret.get("return_value"))
         return True
 
 

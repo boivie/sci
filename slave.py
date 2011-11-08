@@ -75,7 +75,8 @@ class GetSessionInfo:
                 before_request()
 
         session = Session.load(sid)
-        yield json.dumps({"state": session.state})
+        yield json.dumps({"state": session.state,
+                          "return_value": session.return_value})
 
 
 class StartJob:

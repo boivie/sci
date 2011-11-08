@@ -35,18 +35,19 @@ class Step(object):
         self.job._current_step = self
         self.job._print_banner("Step: '%s'" % self.name)
         ret = self.fun(*args, **kwargs)
-        # Wait for any detached jobs
+        # Wait for any unfinished detached jobs
         for job in self.detached_jobs:
             job.join()
             self.job._print_banner("%s finished" % job.session_id)
         self.detached_jobs = []
         return ret
 
-    def run_detached(self, *args, **kwargs):
+    def async(self, *args, **kwargs):
         node = self.job._allocate_node()
         self.job._print_banner("Detach: '%s' -> %s" % (self.name, node.node_id))
         rjob = node.run(self.job, self.fun, args, kwargs)
         self.job._current_step.detached_jobs.append(rjob)
+        return rjob
 
 
 class Job(object):
