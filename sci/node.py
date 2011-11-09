@@ -64,12 +64,8 @@ class DetachedJob(object):
 
 class Node(object):
     """Represents a node"""
-    def __init__(self, node_id):
-        self.node_id = node_id
-
     def _serialize(self, job, fun, args, kwargs):
-        return {"node_id": self.node_id,
-                "funname": fun.__name__,
+        return {"funname": fun.__name__,
                 "jobfname": sys.modules[job._import_name].__file__,
                 "args": args,
                 "kwargs": kwargs,
@@ -88,6 +84,7 @@ class LocalDetachedJob(DetachedJob):
     def __init__(self, session_id, proc):
         super(LocalDetachedJob, self).__init__(session_id)
         self.proc = proc
+        self.return_code = None
 
     def _join(self):
         self.proc.wait()
@@ -95,10 +92,12 @@ class LocalDetachedJob(DetachedJob):
         self._finished(s.return_value)
 
     def _poll(self):
-        if self.proc.poll() is None:
+        return_code = self.proc.poll()
+        if return_code is None:
             return False
 
         s = Session.load(self.session_id)
+        self.return_code = return_code
         self._finished(s.return_value)
         return True
 
@@ -138,8 +137,7 @@ class RemoteDetachedJob(DetachedJob):
 
 
 class RemoteNode(Node):
-    def __init__(self, node_id, url):
-        super(RemoteNode, self).__init__(node_id)
+    def __init__(self, url):
         self.client = HttpClient(url)
 
     def run_remote(self, data):

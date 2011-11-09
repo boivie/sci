@@ -44,9 +44,9 @@ class Step(object):
 
     def async(self, *args, **kwargs):
         node = self.job._allocate_node()
-        self.job._print_banner("Detach: '%s' -> %s" % (self.name, node.node_id))
         rjob = node.run(self.job, self.fun, args, kwargs)
         self.job._current_step.detached_jobs.append(rjob)
+        self.job._print_banner("%s @ %s" % (self.name, rjob.session_id))
         return rjob
 
 
@@ -64,20 +64,17 @@ class Job(object):
         self.debug = debug
         self._master_url = os.environ.get("SCI_MASTER_URL")
         self._job_key = os.environ.get("SCI_JOB_KEY")
-        self._spawned_sub_nodes = 0
         self._current_step = None
 
         self.last_slave = 0
 
     def _allocate_node(self):
-        if 0 == 1:
+        if 1 == 1:
             self.last_slave += 1
-            return RemoteNode("S%d" % self.last_slave,
-                              "http://127.0.0.1:%d" % (6700 + self.last_slave))
+            return RemoteNode("http://127.0.0.1:%d" % (6700 + self.last_slave))
         if self._master_url is None:
             # Can not allocate a node - use local node
-            self._spawned_sub_nodes += 1
-            return LocalNode("")
+            return LocalNode()
 
     def set_description(self, description):
         self._description = self.format(description)

@@ -37,13 +37,12 @@ def jsonify(**kwargs):
 
 def before_request():
     if settings.job:
-        retcode = settings.job.poll()
-        if not retcode is None:
-            print("Job terminated with return code %s" % retcode)
-            if retcode != 0:
+        if settings.job.poll():
+            print("Job terminated")
+            if settings.job.return_code != 0:
                 # We never do that. It must have crashed - clear the session
                 session = Session.load(settings.job.session_id)
-                session.return_code = retcode
+                session.return_code = settings.job.return_code
                 session.state = "finished"
                 session.save()
             settings.job = None
@@ -84,7 +83,7 @@ class StartJob:
         before_request()
         if settings.job:
             abort(412, "already running")
-        n = LocalNode("S0")
+        n = LocalNode()
         settings.job = n.run_remote(web.data())
         return jsonify(status = "started",
                        id = settings.job.session_id)
