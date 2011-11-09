@@ -7,6 +7,7 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
+import types
 
 
 class Environment(dict):
@@ -54,3 +55,13 @@ class Environment(dict):
         if type(env_or_dict) is type(Environment):
             if k in env_or_dict.config:
                 self.config[k] = env_or_dict.config[k]
+
+    def print_values(self):
+        def strfy(v):
+            if (type(v)) in types.StringTypes:
+                return "'%s'" % v
+            return str(v)
+
+        print("Environment:")
+        for key in sorted(self):
+            print(" %s: %s" % (key, strfy(self[key])))

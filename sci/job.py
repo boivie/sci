@@ -8,7 +8,7 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import types, re, os, socket, time, sys
+import re, os, socket, time, sys
 from datetime import datetime
 from .config import Config
 from .environment import Environment
@@ -152,17 +152,6 @@ class Job(object):
         print("%s%s[ %s ]%s" % (prefix, dash * dash_left,
                                  text, dash * dash_right))
 
-    def _print_vars(self):
-        def strfy(v):
-            if (type(v)) in types.StringTypes:
-                return "'%s'" % v
-            return str(v)
-        # Print out all parameters, config and the environment
-        print("Session ID: %s" % self.session.id)
-        print("Environment:")
-        for key in sorted(self.env):
-            print("  %s: %s" % (key, strfy(self.env[key])))
-
     def _parse_arguments(self):
         # Parse parameters
         parser = OptionParser()
@@ -216,7 +205,10 @@ class Job(object):
                 print("")
                 print("Run with --list-parameters to list them.")
                 sys.exit(2)
-        self._print_vars()
+
+        print("Session ID: %s" % self.session.id)
+        self.env.print_values()
+
         self._print_banner("Starting Job", dash = "=")
         ret = entrypoint(*args, **kwargs)
         self._print_banner("Job Finished", dash = "=")
