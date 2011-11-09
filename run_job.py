@@ -2,6 +2,7 @@
 import sys, json, imp
 from sci.job import Job
 from sci.session import Session
+from sci.environment import Environment
 
 data = json.loads(sys.stdin.read())
 
@@ -23,11 +24,12 @@ for k in dir(d):
         if not entrypoint:
             job.error("No entry point given")
 
-        ret = job.start_subjob(session,
-                               entrypoint, data["args"],
-                               data["kwargs"],
-                               data["env"], data["params"], data["config"],
-                               data["node_id"])
+        env = Environment.deserialize(data["env"])
+        ret = job.start_subjob(session = session,
+                               entrypoint = entrypoint,
+                               args = data["args"],
+                               kwargs = data["kwargs"],
+                               env = env)
 
         # Reload session in case it has stopped - doubtful.
         session = Session.load(data["sid"])

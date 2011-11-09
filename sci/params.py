@@ -15,8 +15,8 @@ class ParameterError(Exception):
 
 
 class Parameter(object):
-    def __init__(self, params, name, **kwargs):
-        self.params = params
+    def __init__(self, env, name, **kwargs):
+        self.env = env
         self.name = name
         self.description = kwargs.get("description", "")
         self.required = kwargs.get("required", False)
@@ -24,23 +24,24 @@ class Parameter(object):
         self.type = type
 
     def __call__(self):
-        return self.params.get(self.name)
+        return self.env.get(self.name)
 
     def evaluate(self):
-        if not self.name in self.params and self.default:
+        if not self.name in self.env and self.default:
             if type(self.default) is types.FunctionType:
-                self.params[self.name] = self.default()
+                self.env[self.name] = self.default()
             else:
-                self.params[self.name] = self.default
+                self.env[self.name] = self.default
 
 
-class Parameters(dict):
-    def __init__(self):
+class Parameters(object):
+    def __init__(self, env):
         self.__declared = []
+        self.env = env
         pass
 
     def declare(self, name, **kwargs):
-        obj = Parameter(self, name, **kwargs)
+        obj = Parameter(self.env, name, **kwargs)
         self.__declared.append(obj)
         return obj
 
@@ -55,11 +56,11 @@ class Parameters(dict):
                                      "for a required parameter")
         # Set initial values
         for k in initial:
-            self[k] = initial[k]
+            self.env[k] = initial[k]
 
         # Verify that all required parameters are set
         for p in self.__declared:
-            if p.required and not p.name in self:
+            if p.required and not p.name in self.env:
                 raise ParameterError("Required parameter not set: " +
                                      "'%s'" % p.name)
 

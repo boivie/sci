@@ -58,12 +58,10 @@ class Job(object):
         self.steps = []
         self._mainfn = None
         self._description = ""
-        self.params = Parameters()
-        self.config = Config()
-        self.env = Environment()
+        self.env = self._create_environment()
+        self._params = Parameters(self.env)
         self.artifacts = Artifacts(self)
         self.debug = debug
-        self._set_default_env()
         self._master_url = os.environ.get("SCI_MASTER_URL")
         self._job_key = os.environ.get("SCI_JOB_KEY")
         self._spawned_sub_nodes = 0
@@ -72,15 +70,14 @@ class Job(object):
         self.last_slave = 0
 
     def _allocate_node(self):
-        if 1 == 1:
+        if 0 == 1:
             self.last_slave += 1
             return RemoteNode("S%d" % self.last_slave,
                               "http://127.0.0.1:%d" % (6700 + self.last_slave))
         if self._master_url is None:
             # Can not allocate a node - use local node
             self._spawned_sub_nodes += 1
-            return LocalNode("%s.%s" % (self.env["SCI_SERVER_ID"],
-                                        self._spawned_sub_nodes))
+            return LocalNode("")
 
     def set_description(self, description):
         self._description = self.format(description)
@@ -102,18 +99,25 @@ class Job(object):
 
     def parameter(self, name, description = "", default = None,
                   **kwargs):
-        return self.params.declare(name, description = description,
-                                   default = default, **kwargs)
+        param = self._params.declare(name, description = description,
+                                     default = default, **kwargs)
+        self.env.define(name, description, source = "parameter", final = True)
+        return param
 
-    def _set_default_env(self):
-        # Set hostname
+    def _create_environment(self):
+        env = Environment()
+
         hostname = socket.gethostname()
         if hostname.endswith(".local"):
             hostname = hostname[:-len(".local")]
-        self.env["SCI_HOSTNAME"] = hostname
-        self.env["SCI_SERVER_ID"] = os.environ.get("SCI_SERVER_ID", "S0")
+        env.define("SCI_HOSTNAME", "Host Name", read_only = True,
+                   value = hostname, source = "initial environment")
+
         now = datetime.now()
-        self.env["SCI_DATETIME"] = now.strftime("%Y-%m-%d_%H-%M-%S")
+        env.define("SCI_DATETIME", "The current date and time",
+                   read_only = True, source = "initial environment",
+                   value = now.strftime("%Y-%m-%d_%H-%M-%S"))
+        return env
 
     ### Decorators ###
 
@@ -142,7 +146,7 @@ class Job(object):
         return "%d" % delta
 
     def _print_banner(self, text, dash = "-"):
-        prefix = "[%s +%s]" % (self.env["SCI_SERVER_ID"], self._timestr())
+        prefix = "[+%s]" % self._timestr()
         dash_left = (80 - len(text) - 4 - len(prefix)) / 2
         dash_right = 80 - len(text) - 4 - len(prefix) - dash_left
         print("%s%s[ %s ]%s" % (prefix, dash * dash_left,
@@ -155,13 +159,7 @@ class Job(object):
             return str(v)
         # Print out all parameters, config and the environment
         print("Session ID: %s" % self.session.id)
-        print("Configuration Values:")
-        for key in sorted(self.config):
-            print("  %s: %s" % (key, strfy(self.config[key])))
-        print("Parameters:")
-        for key in sorted(self.params):
-            print("  %s: %s" % (key, strfy(self.params[key])))
-        print("Initial Environment:")
+        print("Environment:")
         for key in sorted(self.env):
             print("  %s: %s" % (key, strfy(self.env[key])))
 
@@ -175,18 +173,19 @@ class Job(object):
                           help = "List job parameters and quit")
         (opts, args) = parser.parse_args()
         if opts.config:
-            self.config.from_pyfile(opts.config)
+            self.env.merge(Config.from_pyfile(opts.config))
+
         if opts.list_parameters:
-            self.params.print_help()
+            self._params.print_help()
             sys.exit(2)
         # Parse parameters specified as args:
         for arg in args:
             if "=" in arg:
                 k, v = arg.split("=", 2)
-                self.params[k] = v
+                self.env[k] = v
         return opts, args
 
-    def _start(self, entrypoint, session = None, use_argv = True, params = {}, env = {}, config = {}, validate_params = False, args = [], kwargs = {}):
+    def _start(self, entrypoint, session = None, use_argv = True, env = {}, params = {}, validate_params = False, args = [], kwargs = {}):
         if session:
             self.session = session
         if use_argv:
@@ -194,21 +193,24 @@ class Job(object):
         # Must set time first. It's used when printing
         self.start_time = time.time()
         self._print_banner("Preparing Job", dash = "=")
+
         # Read global config file
-        if self.config.from_env("SCI_CONFIG"):
+        config = Config.from_env("SCI_CONFIG")
+        if config:
+            self.env.merge(config)
             print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
-        # Override parameters/env/config
-        for k in env:
-            self.env[k] = env[k]
+        # Merge environments
+        if env:
+            self.env.merge(env)
+
+        # Set parameters
         for k in params:
-            self.params[k] = params[k]
-        for k in config:
-            self.config[k] = config[k]
+            self.env[k] = params[k]
 
         if validate_params:
             try:
-                self.params.evaluate()
+                self._params.evaluate()
             except ParameterError as e:
                 print("error: %s " % e)
                 print("")
@@ -226,9 +228,9 @@ class Job(object):
                            validate_params = True)
 
     def start_subjob(self, session, entrypoint, args, kwargs,
-                     env, params, config, node_id):
+                     env):
         return self._start(entrypoint, session = session,
-                           params = params, env = env, config = config,
+                           env = env,
                            args = args, kwargs = kwargs)
 
     def run(self, cmd, **kwargs):
@@ -242,20 +244,16 @@ class Job(object):
             if not m:
                 break
             name = m.groups()[0]
-            value = self.get_var(name, args = kwargs)
+            value = self.var(name, **kwargs)
             if not value:
                 self.error("Failed to replace template variable %s" % name)
             tmpl = tmpl.replace("{{%s}}" % name, str(value))
         return tmpl
 
-    def get_var(self, name, args = {}):
-        value = args.get(name)
+    def var(self, _key, **kwargs):
+        value = kwargs.get(_key)
         if not value:
-            value = self.params.get(name)
-        if not value:
-            value = self.env.get(name)
-        if not value:
-            value = self.config.get(name)
+            value = self.env.get(_key)
         return value
 
     def error(self, what):

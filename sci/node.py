@@ -73,9 +73,7 @@ class Node(object):
                 "jobfname": sys.modules[job._import_name].__file__,
                 "args": args,
                 "kwargs": kwargs,
-                "env": dict(job.env),
-                "params": dict(job.params),
-                "config": dict(job.config)}
+                "env": job.env.serialize()}
 
     def run_remote(self, data):
         raise NotImplemented()
@@ -93,9 +91,16 @@ class LocalDetachedJob(DetachedJob):
 
     def _join(self):
         self.proc.wait()
+        s = Session.load(self.session_id)
+        self._finished(s.return_value)
 
     def _poll(self):
-        return self.proc.poll()
+        if self.proc.poll() is None:
+            return False
+
+        s = Session.load(self.session_id)
+        self._finished(s.return_value)
+        return True
 
 
 class LocalNode(Node):

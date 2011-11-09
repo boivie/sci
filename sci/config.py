@@ -11,22 +11,25 @@ import imp, os
 
 
 class Config(dict):
+    @classmethod
     def from_env(self, variable_name):
         rv = os.environ.get(variable_name)
         if not rv:
-            return False
-        self.from_pyfile(rv)
-        return True
+            return None
+        return Config.from_pyfile(rv)
 
+    @classmethod
     def from_pyfile(self, filename):
         filename = os.path.join(filename)
         d = imp.new_module('config')
         d.__file__ = filename
         execfile(filename, d.__dict__)
-        self.from_object(d)
-        return True
+        return Config.from_object(d)
 
+    @classmethod
     def from_object(self, obj):
+        c = Config()
         for key in dir(obj):
             if key.isupper():
-                self[key] = getattr(obj, key)
+                c[key] = getattr(obj, key)
+        return c

@@ -11,7 +11,7 @@ class TC(EmptyTestBase):
     def testNotRequiredAndDefault(self):
         self.job.parameter("FOO", required = True, default = "Foo")
         try:
-            self.job.params.evaluate()
+            self.job._params.evaluate()
             assert False
         except ParameterError:
             pass
@@ -19,7 +19,7 @@ class TC(EmptyTestBase):
     def testMustSpecifyRequired(self):
         self.job.parameter("FOO", required = True)
         try:
-            self.job.params.evaluate()
+            self.job._params.evaluate()
             assert False
         except ParameterError:
             pass
