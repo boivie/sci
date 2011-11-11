@@ -17,6 +17,7 @@ urls = (
     '/info/([0-9a-f]+).json', 'GetSessionInfo',
     '/start.json',            'StartJob',
     '/log/([0-9a-f]+).txt',   'GetLog',
+    '/package/(.+)',          'Package',
     '/status.json',           'GetStatus')
 
 app = web.application(urls, globals())
@@ -83,7 +84,7 @@ class StartJob:
         if settings.job:
             abort(412, "already running")
         n = LocalNode()
-        settings.job = n.run_remote(web.data(), web.config._path)
+        settings.job = n.run_remote(None, web.data(), web.config._path)
         return jsonify(status = "started",
                        id = settings.job.session_id)
 
@@ -112,6 +113,15 @@ class GetStatus:
         else:
             return jsonify(status = "idle")
 
+
+class Package:
+    def PUT(self, filename):
+        destination = os.path.join(web.config._package_path, filename)
+        with open(destination, "w") as f:
+            f.write(web.data())
+        print("Updated %s" % destination)
+
+
 if __name__ == "__main__":
     parser = OptionParser()
     parser.add_option("-c", "--config", dest = "config",
@@ -136,6 +146,9 @@ if __name__ == "__main__":
         if not os.path.exists(opts.path):
             os.makedirs(opts.path)
         web.config._path = os.path.realpath(opts.path)
+    web.config._package_path = os.path.join(web.config._path, "packages")
+    if not os.path.exists(web.config._package_path):
+        os.makedirs(web.config._package_path)
 
     Session.set_root_path(web.config._path)
     print("Running from %s" % web.config._path)

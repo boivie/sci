@@ -5,7 +5,7 @@ class HttpClient(object):
     def __init__(self, url):
         self.url = url
 
-    def call(self, path, method = None, input = None, **kwargs):
+    def call(self, path, method = None, input = None, raw = False, **kwargs):
         if method is None:
             method = "POST" if input else "GET"
         headers = {"Accept": "application/json, text/plain, */*"}
@@ -20,4 +20,6 @@ class HttpClient(object):
             raise Exception("Failed")
         data = r.read()
         c.close()
+        if raw:
+            return data
         return json.loads(data)

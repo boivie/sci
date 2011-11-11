@@ -7,7 +7,7 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import sys, subprocess, json, time
+import subprocess, json, time, os
 from .session import Session
 from .http_client import HttpClient
 
@@ -72,13 +72,13 @@ class Node(object):
                 "kwargs": kwargs,
                 "env": job.env.serialize()}
 
-    def run_remote(self, data):
+    def run_remote(self, job, data):
         raise NotImplemented()
 
     def run(self, job, fun, args, kwargs):
         """Runs a job on this node."""
         data = self._serialize(job, fun, args, kwargs)
-        return self.run_remote(json.dumps(data))
+        return self.run_remote(job, json.dumps(data))
 
 
 class LocalDetachedJob(DetachedJob):
@@ -104,19 +104,18 @@ class LocalDetachedJob(DetachedJob):
 
 
 class LocalNode(Node):
-    def run_remote(self, data, local_path = None):
+    def run_remote(self, job, data, local_path = None):
         # Create a session
         session = Session.create()
-        d = json.loads(data)
-        d["sid"] = session.id
-        d["_path"] = local_path
-        args = ["./run_job.py"]
+        run_job = os.path.join(os.path.dirname(__file__), "..", "run_job.py")
+        args = [run_job, session.id]
         stdout = open(session.logfile, "w")
         session.state = "running"
         session.save()
         proc = subprocess.Popen(args, stdin = subprocess.PIPE,
-                                stdout = stdout, stderr = subprocess.STDOUT)
-        proc.stdin.write(json.dumps(d))
+                                stdout = stdout, stderr = subprocess.STDOUT,
+                                cwd = local_path)
+        proc.stdin.write(data)
         proc.stdin.close()
         return LocalDetachedJob(session.id, proc)
 
@@ -142,7 +141,13 @@ class RemoteNode(Node):
     def __init__(self, url):
         self.client = HttpClient(url)
 
-    def run_remote(self, data):
+    def run_remote(self, job, data):
+        # Upload the package to this slave
+        package = os.path.basename(job.location.package)
+        self.client.call("/package/%s" % package,
+                         method = "PUT",
+                         input = open(job.location.package, "rb").read(),
+                         raw = True)
         ret = self.client.call("/start.json", input = data)
         if ret["status"] != "started":
             raise Exception("Bad status")
