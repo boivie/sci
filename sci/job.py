@@ -16,12 +16,19 @@ from .params import Parameters, ParameterError
 from .node import LocalNode, RemoteNode
 from .artifacts import Artifacts
 from .session import Session
+from .bootstrap import run_package, create_pkg
 
 re_var = re.compile("{{(.*?)}}")
 
 
 class JobException(Exception):
     pass
+
+
+class JobLocation(object):
+    def __init__(self, package, filename):
+        self.package = package
+        self.filename = filename
 
 
 class Step(object):
@@ -64,6 +71,7 @@ class Job(object):
         self.debug = debug
         self._master_url = os.environ.get("SCI_MASTER_URL")
         self._job_key = os.environ.get("SCI_JOB_KEY")
+        self._location = None
         self._current_step = None
 
         self.last_slave = 0
@@ -93,6 +101,16 @@ class Job(object):
         return self._session
 
     session = property(get_session, set_session)
+
+    def set_location(self, location):
+        if self._location:
+            raise JobException("The location can only be set once")
+        self._location = location
+
+    def get_location(self):
+        return self._location
+
+    location = property(get_location, set_location)
 
     def parameter(self, name, description = "", default = None,
                   **kwargs):
@@ -171,10 +189,10 @@ class Job(object):
                 self.env[k] = v
         return opts, args
 
-    def _start(self, entrypoint, session = None, use_argv = True, env = {}, params = {}, validate_params = False, args = [], kwargs = {}):
+    def _start(self, session, entrypoint, params, args, kwargs, env, flags):
         if session:
             self.session = session
-        if use_argv:
+        if flags.get("manually-started", False):
             opts, _ = self._parse_arguments()
         # Must set time first. It's used when printing
         self.start_time = time.time()
@@ -194,7 +212,7 @@ class Job(object):
         for k in params:
             self.env[k] = params[k]
 
-        if validate_params:
+        if flags.get("main-job", False):
             try:
                 self._params.evaluate()
             except ParameterError as e:
@@ -204,6 +222,8 @@ class Job(object):
                 sys.exit(2)
 
         print("Session ID: %s" % self.session.id)
+        print("Location %s/%s" % (self.location.package,
+                                  self.location.filename))
         self.env.print_values()
 
         self._print_banner("Starting Job", dash = "=")
@@ -211,16 +231,21 @@ class Job(object):
         self._print_banner("Job Finished", dash = "=")
         return ret
 
-    def start(self, use_argv = True, params = {}):
-        return self._start(self._mainfn, session = Session(),
-                           use_argv = use_argv, params = params,
-                           validate_params = True)
+    def start(self, params = {}):
+        """Start a job manually (for testing)
 
-    def start_subjob(self, session, entrypoint, args, kwargs,
-                     env):
-        return self._start(entrypoint, session = session,
-                           env = env,
-                           args = args, kwargs = kwargs)
+           This method is only used when running a job manually by
+           invoking the job's script from the command line."""
+        # Create a package, so that we mimic how real jobs work
+        mfilename = sys.modules[self._import_name].__file__
+        this_dir = os.path.dirname(os.path.realpath(mfilename))
+        fname = create_pkg(this_dir)
+
+        session = Session.create()
+        filename = sys.modules[self._import_name].__file__
+        flags = {"main-job": True, "manually-started": True}
+        location = JobLocation(os.path.basename(fname), filename)
+        return run_package(session, location, params = params, flags = flags)
 
     def run(self, cmd, **kwargs):
         if self.debug:

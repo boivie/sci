@@ -5,7 +5,7 @@ from sci.params import ParameterError
 class TC(EmptyTestBase):
     def testSet(self):
         self.job.parameter("FOO")
-        self.job.start(params = {"FOO": "bar"})
+        self.job.env["FOO"] = "bar"
         assert(self.job.format("{{FOO}}") == "bar")
 
     def testNotRequiredAndDefault(self):

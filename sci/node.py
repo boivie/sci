@@ -65,8 +65,9 @@ class DetachedJob(object):
 class Node(object):
     """Represents a node"""
     def _serialize(self, job, fun, args, kwargs):
-        return {"funname": fun.__name__,
-                "jobfname": sys.modules[job._import_name].__file__,
+        return {"location": {"package": job.location.package,
+                             "filename": job.location.filename},
+                "funname": fun.__name__,
                 "args": args,
                 "kwargs": kwargs,
                 "env": job.env.serialize()}
@@ -103,11 +104,12 @@ class LocalDetachedJob(DetachedJob):
 
 
 class LocalNode(Node):
-    def run_remote(self, data):
+    def run_remote(self, data, local_path = None):
         # Create a session
         session = Session.create()
         d = json.loads(data)
         d["sid"] = session.id
+        d["_path"] = local_path
         args = ["./run_job.py"]
         stdout = open(session.logfile, "w")
         session.state = "running"

@@ -11,18 +11,15 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import time, os, json, hashlib, random
-
-
-def random_bytes(size):
-    return "".join(chr(random.randrange(0, 256)) for i in xrange(size))
+import time, os, json
+from .utils import random_sha1
 
 
 class Session(object):
     root_path = "."
 
     def __init__(self, id = None):
-        self.id = id if id else hashlib.sha1(random_bytes(20)).hexdigest()
+        self.id = id if id else random_sha1()
         self.path = self.__path(self.id)
         self.logfile = os.path.join(self.path, "output.log")
         self.workspace = os.path.join(self.path, "workspace")
@@ -41,6 +38,8 @@ class Session(object):
     def create(cls):
         s = Session()
         os.makedirs(s.workspace)
+        with open(os.path.join(s.path, "_do_not_package.txt"), "w") as f:
+            f.write("Do not add this to a job's package.")
         s.save()
         return s
 

@@ -23,9 +23,8 @@ app = web.application(urls, globals())
 
 
 class Settings(object):
-    key = None
-    path = "."
-    job = None
+    def __init__(self):
+        self.job = None
 
 settings = Settings()
 
@@ -84,7 +83,7 @@ class StartJob:
         if settings.job:
             abort(412, "already running")
         n = LocalNode()
-        settings.job = n.run_remote(web.data())
+        settings.job = n.run_remote(web.data(), web.config._path)
         return jsonify(status = "started",
                        id = settings.job.session_id)
 
@@ -132,14 +131,16 @@ if __name__ == "__main__":
     if opts.config:
         raise NotImplemented()
     if opts.key:
-        settings.key = opts.key
+        web.config.key = opts.key
     if opts.path:
-        settings.path = opts.path
-        Session.set_root_path(settings.path)
-    settings.path = os.path.realpath(settings.path)
-    print("Running from %s" % settings.path)
+        if not os.path.exists(opts.path):
+            os.makedirs(opts.path)
+        web.config._path = os.path.realpath(opts.path)
 
-    if not settings.key:
+    Session.set_root_path(web.config._path)
+    print("Running from %s" % web.config._path)
+
+    if not web.config.key:
         print >> sys.stderr, "Please specify a configuration file or a key"
         sys.exit(1)
 
