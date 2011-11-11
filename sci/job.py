@@ -16,7 +16,7 @@ from .params import Parameters, ParameterError
 from .node import LocalNode, RemoteNode
 from .artifacts import Artifacts
 from .session import Session
-from .bootstrap import run_package, create_pkg
+from .package import Package
 
 re_var = re.compile("{{(.*?)}}")
 
@@ -239,13 +239,13 @@ class Job(object):
         # Create a package, so that we mimic how real jobs work
         mfilename = sys.modules[self._import_name].__file__
         this_dir = os.path.dirname(os.path.realpath(mfilename))
-        fname = create_pkg(this_dir)
+        output_dir = os.path.join(os.path.dirname(__file__), "packages")
+        package = Package.create(this_dir, output_dir)
 
         session = Session.create()
-        filename = sys.modules[self._import_name].__file__
         flags = {"main-job": True, "manually-started": True}
-        location = JobLocation(os.path.basename(fname), filename)
-        return run_package(session, location, params = params, flags = flags)
+        return package.run(session, mfilename,
+                           params = params, flags = flags)
 
     def run(self, cmd, **kwargs):
         if self.debug:

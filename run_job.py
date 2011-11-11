@@ -1,18 +1,18 @@
 #!/usr/bin/env python
-import sys, json
-from sci.job import JobLocation
+import sys, json, os
 from sci.session import Session
-from sci.bootstrap import run_package
+from sci.package import Package
 
 data = json.loads(sys.stdin.read())
+
+package_fname = os.path.join(os.path.dirname(sys.modules["sci.job"].__file__),
+                             "packages", data["location"]["package"])
+package = Package(package_fname)
 
 if "_path" in data:
     Session.set_root_path(data["_path"])
 
-location = JobLocation(data["location"]["package"],
-                       data["location"]["filename"])
-
 session = Session.load(data["sid"])
-run_package(session, location, data["funname"],
+package.run(session, data["location"]["filename"], data["funname"],
             args = data["args"], kwargs = data["kwargs"],
             env = data["env"])
