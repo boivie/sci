@@ -38,13 +38,15 @@ def jsonify(**kwargs):
 def before_request():
     if settings.job:
         if settings.job.poll():
-            print("Job terminated")
             if settings.job.return_code != 0:
+                print("Job CRASHED")
                 # We never do that. It must have crashed - clear the session
                 session = Session.load(settings.job.session_id)
                 session.return_code = settings.job.return_code
                 session.state = "finished"
                 session.save()
+            else:
+                print("Job terminated")
             settings.job = None
 
 
