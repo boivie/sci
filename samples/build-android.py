@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import time, itertools
 from sci import Job
 

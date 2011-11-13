@@ -244,7 +244,7 @@ class Job(object):
 
         session = Session.create()
         flags = {"main-job": True, "manually-started": True}
-        return package.run(session, mfilename,
+        return package.run(session, os.path.basename(mfilename),
                            params = params, flags = flags)
 
     def run(self, cmd, **kwargs):
