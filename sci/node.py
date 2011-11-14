@@ -146,7 +146,7 @@ class RemoteNode(Node):
         package = os.path.basename(job.location.package)
         self.client.call("/package/%s" % package,
                          method = "PUT",
-                         input = open(job.location.package, "rb").read(),
+                         input = open(job.location.package, "rb"),
                          raw = True)
         ret = self.client.call("/start.json", input = data)
         if ret["status"] != "started":

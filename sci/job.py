@@ -8,7 +8,7 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import re, os, socket, time, sys
+import re, os, socket, time, sys, logging
 from datetime import datetime
 from .config import Config
 from .environment import Environment
@@ -17,6 +17,8 @@ from .node import LocalNode, RemoteNode
 from .artifacts import Artifacts
 from .session import Session
 from .package import Package
+from .http_client import HttpClient
+
 
 re_var = re.compile("{{(.*?)}}")
 
@@ -74,15 +76,18 @@ class Job(object):
         self._location = None
         self._current_step = None
 
-        self.last_slave = 0
-
     def _allocate_node(self):
-        if 1 == 1:
-            self.last_slave += 1
-            return RemoteNode("http://127.0.0.1:%d" % (6700 + self.last_slave))
         if self._master_url is None:
             # Can not allocate a node - use local node
             return LocalNode()
+        else:
+            # Allocate one using the ahq
+            client = HttpClient(self._master_url)
+            result = client.call("/allocate/any.json", method = "POST")
+            if result["status"] != "ok":
+                raise Exception("Failed to allocate slave")
+            logging.debug("Allocated %s (%s:%s)" % (result["agent"], result["ip"], result["port"]))
+            return RemoteNode("http://%s:%s" % (result["ip"], result["port"]))
 
     def set_description(self, description):
         self._description = self.format(description)

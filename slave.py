@@ -9,9 +9,12 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import web, json, sys, os
+import web, json, sys, os, threading
 from sci.session import Session, time
 from sci.node import LocalNode
+from sci.http_client import HttpClient
+from sci.utils import random_sha1
+import ConfigParser
 
 urls = (
     '/info/([0-9a-f]+).json', 'GetSessionInfo',
@@ -20,34 +23,42 @@ urls = (
     '/package/(.+)',          'Package',
     '/status.json',           'GetStatus')
 
+EXPIRY_TTL = 60
+
+web.config.debug = False
 app = web.application(urls, globals())
 
 
 class Settings(object):
     def __init__(self):
         self.job = None
+        self.last_status = 0
 
 settings = Settings()
+
+
+def get_config(path):
+    c = ConfigParser.ConfigParser()
+    c.read(os.path.join(path, "config.ini"))
+    try:
+        return {"node_id": c.get("sci", "node_id")}
+    except ConfigParser.NoOptionError:
+        return None
+    except ConfigParser.NoSectionError:
+        return None
+
+
+def save_config(path, node_id):
+    c = ConfigParser.ConfigParser()
+    c.add_section('sci')
+    c.set("sci", "node_id", node_id)
+    with open(os.path.join(path, "config.ini"), "wb") as configfile:
+        c.write(configfile)
 
 
 def jsonify(**kwargs):
     web.header('Content-Type', 'application/json')
     return json.dumps(kwargs)
-
-
-def before_request():
-    if settings.job:
-        if settings.job.poll():
-            if settings.job.return_code != 0:
-                print("Job CRASHED")
-                # We never do that. It must have crashed - clear the session
-                session = Session.load(settings.job.session_id)
-                session.return_code = settings.job.return_code
-                session.state = "finished"
-                session.save()
-            else:
-                print("Job terminated")
-            settings.job = None
 
 
 def abort(status, data):
@@ -57,7 +68,6 @@ def abort(status, data):
 
 class GetSessionInfo:
     def GET(self, sid):
-        before_request()
         web.header('Content-Type', 'application/json')
         session = Session.load(sid)
         if not session:
@@ -73,7 +83,6 @@ class GetSessionInfo:
                 if i % 10 == 0:
                     yield "\n"
                 time.sleep(0.1)
-                before_request()
 
         session = Session.load(sid)
         yield json.dumps({"state": session.state,
@@ -82,7 +91,6 @@ class GetSessionInfo:
 
 class StartJob:
     def POST(self):
-        before_request()
         if settings.job:
             abort(412, "already running")
         n = LocalNode()
@@ -93,7 +101,6 @@ class StartJob:
 
 class GetLog:
     def GET(self, sid):
-        before_request()
         web.header('Content-type', 'text/plain')
         web.header('Transfer-Encoding', 'chunked')
         session = Session.load(sid)
@@ -109,7 +116,6 @@ class GetLog:
 
 class GetStatus:
     def GET(self):
-        before_request()
         if settings.job:
             return jsonify(status = "running")
         else:
@@ -122,6 +128,61 @@ class Package:
         with open(destination, "w") as f:
             f.write(web.data())
         print("Updated %s" % destination)
+
+
+def send_status(status):
+    client = HttpClient("http://127.0.0.1:6699")
+
+    status_str = {STATUS_AVAILABLE: "available",
+                  STATUS_BUSY: "busy"}[status]
+    print("%s checking in (%s)" % (web.config.node_id, status_str))
+    client.call("/checkin/%s.json" % web.config.node_id,
+                input = json.dumps({"port": web.config.port,
+                                    "status": status_str}))
+
+STATUS_AVAILABLE, STATUS_BUSY = range(2)
+
+
+def get_status():
+    if settings.job:
+        if settings.job.poll():
+            if settings.job.return_code != 0:
+                print("Job CRASHED")
+                # We never do that. It must have crashed - clear the session
+                session = Session.load(settings.job.session_id)
+                session.return_code = settings.job.return_code
+                session.state = "finished"
+                session.save()
+            else:
+                print("Job terminated")
+            settings.job = None
+
+    if settings.job:
+        return STATUS_BUSY
+    return STATUS_AVAILABLE
+
+
+def ttl_expired():
+    if settings.last_status + EXPIRY_TTL < int(time.time()):
+        return True
+
+
+class StatusThread(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.kill_received = False
+
+    def run(self):
+        # Wait a few seconds before staring - to let things settle
+        time.sleep(3)
+        reported_status = STATUS_BUSY
+        while not self.kill_received:
+            current_status = get_status()
+            if current_status != reported_status or ttl_expired():
+                send_status(current_status)
+                reported_status = current_status
+                settings.last_status = int(time.time())
+            time.sleep(1)
 
 
 if __name__ == "__main__":
@@ -153,10 +214,23 @@ if __name__ == "__main__":
         os.makedirs(web.config._package_path)
 
     Session.set_root_path(web.config._path)
-    print("Running from %s" % web.config._path)
+
+    config = get_config(web.config._path)
+    if not config:
+        web.config.node_id = random_sha1()
+        save_config(web.config._path, web.config.node_id)
+    else:
+        web.config.node_id = config["node_id"]
 
     if not web.config.key:
         print >> sys.stderr, "Please specify a configuration file or a key"
         sys.exit(1)
 
+    web.config.port = int(opts.port)
+
+    print("%s: Running from %s, listening to %d" % (web.config.node_id, web.config._path, web.config.port))
+
+    t = StatusThread()
+    t.start()
     web.httpserver.runsimple(app.wsgifunc(), ("0.0.0.0", int(opts.port)))
+    t.kill_received = True
