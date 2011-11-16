@@ -8,7 +8,7 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import re, os, socket, time, sys, logging, types, subprocess, shlex
+import re, os, socket, time, sys, logging, types, subprocess
 from datetime import datetime
 from .config import Config
 from .environment import Environment
@@ -18,7 +18,6 @@ from .artifacts import Artifacts
 from .session import Session
 from .package import Package
 from .http_client import HttpClient
-from .utils import random_sha1
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -197,11 +196,12 @@ class Job(object):
         return opts, args
 
     def _start(self, session, entrypoint, params, args, kwargs, env, flags):
-        assert(session)
         self.session = session
         if env is None:  # The root of all jobs
             self.id = session.id
-            self.env["SCI_JOB_ID"] = self.id
+            self.env.define("SCI_JOB_ID", "The unique job identifier",
+                            read_only = True, source = "initial environment",
+                            value = self.id)
         else:
             self.id = env["SCI_JOB_ID"]
 
@@ -234,7 +234,7 @@ class Job(object):
                 print("Run with --list-parameters to list them.")
                 sys.exit(2)
 
-        print("Session ID: %s" % self.session.id)
+        print("Job ID: %s" % self.id)
         print("Location %s/%s" % (self.location.package,
                                   self.location.filename))
         self.env.print_values()
@@ -261,6 +261,13 @@ class Job(object):
                            params = params, flags = flags)
 
     def run(self, cmd, **kwargs):
+        """Runs a command in a shell
+
+           The command will be run with the current working directory
+           set to be the session's workspace.
+
+           If the command fails, this method will raise an error
+        """
         cmd = self.format(cmd, **kwargs)
         devnull = open("/dev/null", "r")
         p = subprocess.Popen(cmd,
