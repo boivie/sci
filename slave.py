@@ -136,9 +136,8 @@ def send_status(status):
     status_str = {STATUS_AVAILABLE: "available",
                   STATUS_BUSY: "busy"}[status]
     print("%s checking in (%s)" % (web.config.node_id, status_str))
-    client.call("/checkin/%s.json" % web.config.node_id,
-                input = json.dumps({"port": web.config.port,
-                                    "status": status_str}))
+    client.call("/checkin/%s/%s.json" % (web.config.node_id, status_str),
+                input = json.dumps({"port": web.config.port}))
 
 STATUS_AVAILABLE, STATUS_BUSY = range(2)
 

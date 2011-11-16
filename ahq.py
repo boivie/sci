@@ -18,11 +18,14 @@ KEY_AGENT = 'agent:%s'
 EXPIRY_TTL = 2 * 60
 
 urls = (
-    '/checkin/([0-9a-f]+).json', 'CheckIn',
+    '/checkin/([0-9a-f]+)/([a-z]+).json', 'CheckIn',
     '/allocate/(.+).json',       'Allocate',
 )
 
 app = web.application(urls, globals())
+
+
+pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
 
 
 def jsonify(**kwargs):
@@ -31,21 +34,22 @@ def jsonify(**kwargs):
 
 
 def conn():
-    return redis.StrictRedis()
+    r = redis.Redis(connection_pool=pool)
+    return r
 
 
 class CheckIn:
-    def POST(self, agent_id):
+    def POST(self, agent_id, status):
         # TODO: Add a key to authenticate the agent
         info = json.loads(web.data())
         db = conn()
         db.set(KEY_AGENT % agent_id, json.dumps({"ip": web.ctx.ip,
                                                  "port": info["port"],
-                                                 "status": info["status"],
+                                                 "status": status,
                                                  "seen": int(time.time())}))
         label = "any"
         db.sadd(KEY_ALL, agent_id)
-        if info["status"] == "available":
+        if status == "available":
             db.sadd(KEY_AVAILABLE % label, agent_id)
         else:
             db.srem(KEY_AVAILABLE % label, agent_id)
