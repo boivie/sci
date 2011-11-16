@@ -8,7 +8,7 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import re, os, socket, time, sys, logging
+import re, os, socket, time, sys, logging, types, subprocess, shlex
 from datetime import datetime
 from .config import Config
 from .environment import Environment
@@ -18,6 +18,7 @@ from .artifacts import Artifacts
 from .session import Session
 from .package import Package
 from .http_client import HttpClient
+from .utils import random_sha1
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -68,8 +69,9 @@ class Job(object):
         self._mainfn = None
         self._description = ""
         self.env = self._create_environment()
+        self.id = None
         self._params = Parameters(self.env)
-        self.artifacts = Artifacts(self)
+        self.artifacts = Artifacts(self, "http://localhost:6698")
         self.debug = debug
         self._master_url = os.environ.get("SCI_MASTER_URL")
         self._job_key = os.environ.get("SCI_JOB_KEY")
@@ -195,8 +197,14 @@ class Job(object):
         return opts, args
 
     def _start(self, session, entrypoint, params, args, kwargs, env, flags):
-        if session:
-            self.session = session
+        assert(session)
+        self.session = session
+        if env is None:  # The root of all jobs
+            self.id = session.id
+            self.env["SCI_JOB_ID"] = self.id
+        else:
+            self.id = env["SCI_JOB_ID"]
+
         if flags.get("manually-started", False):
             opts, _ = self._parse_arguments()
         # Must set time first. It's used when printing
@@ -253,11 +261,18 @@ class Job(object):
                            params = params, flags = flags)
 
     def run(self, cmd, **kwargs):
-        if self.debug:
-            print("Running CMD '%s'" % self.format(cmd, **kwargs))
-        time.sleep(1)
+        cmd = self.format(cmd, **kwargs)
+        devnull = open("/dev/null", "r")
+        p = subprocess.Popen(cmd,
+                             shell = True,
+                             stdin = devnull, stdout = sys.stdout,
+                             stderr = sys.stderr,
+                             cwd = self.session.workspace)
+        p.communicate()
+        if p.returncode != 0:
+            self.error("Command failed")
 
-    def format(self, tmpl, **kwargs):
+    def _format(self, tmpl, **kwargs):
         while True:
             m = re_var.search(tmpl)
             if not m:
@@ -268,6 +283,14 @@ class Job(object):
                 self.error("Failed to replace template variable %s" % name)
             tmpl = tmpl.replace("{{%s}}" % name, str(value))
         return tmpl
+
+    def format(self, tmpl, **kwargs):
+        if isinstance(tmpl, basestring):
+            return self._format(tmpl, **kwargs)
+        elif isinstance(tmpl, types.ListType):
+            return [self._format(t, **kwargs) for t in tmpl]
+        else:
+            raise TypeError("Invalid type for format")
 
     def var(self, _key, **kwargs):
         value = kwargs.get(_key)
