@@ -77,18 +77,32 @@ class Job(object):
         self._location = None
         self._current_step = None
 
+    def _do_allocate_node(self, url):
+        retry_cnt = 0
+        while True:
+            result = HttpClient(url).call("/allocate/any.json", method = "POST")
+            if result["status"] == "ok":
+                logging.debug("Allocated %s (%s)" % (result["agent"],
+                                                     result["url"]))
+                return RemoteNode(result["url"])
+            if result["status"] != "empty":
+                raise Exception("Failed to allocate slave")
+
+            # We must wait for a slave to be available.
+            if retry_cnt == 0:
+                logging.info("No slaves available. Waiting.")
+            elif (retry_cnt % 10) == 0:
+                logging.info("Waited %s seconds for a slave..." % retry_cnt)
+            time.sleep(1)
+            retry_cnt += 1
+
     def _allocate_node(self):
         if self._master_url is None:
             # Can not allocate a node - use local node
             return LocalNode()
         else:
             # Allocate one using the ahq
-            client = HttpClient(self._master_url)
-            result = client.call("/allocate/any.json", method = "POST")
-            if result["status"] != "ok":
-                raise Exception("Failed to allocate slave")
-            logging.debug("Allocated %s (%s:%s)" % (result["agent"], result["ip"], result["port"]))
-            return RemoteNode("http://%s:%s" % (result["ip"], result["port"]))
+            return self._do_allocate_node(self._master_url)
 
     def set_description(self, description):
         self._description = self.format(description)
@@ -249,6 +263,8 @@ class Job(object):
 
            This method is only used when running a job manually by
            invoking the job's script from the command line."""
+        #logging.basicConfig(level=logging.DEBUG)
+
         # Create a package, so that we mimic how real jobs work
         mfilename = sys.modules[self._import_name].__file__
         this_dir = os.path.dirname(os.path.realpath(mfilename))

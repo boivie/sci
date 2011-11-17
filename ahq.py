@@ -81,7 +81,8 @@ class Allocate:
             info["status"] = "allocated"
             db.set(KEY_AGENT % agent_id, json.dumps(info))
             return jsonify(status = "ok", agent = agent_id,
-                           ip = info["ip"], port = info["port"])
+                           ip = info["ip"], port = info["port"],
+                           url = "http://%s:%s" % (info["ip"], info["port"]))
 
 
 if __name__ == "__main__":
