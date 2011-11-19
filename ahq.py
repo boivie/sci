@@ -142,6 +142,31 @@ class CheckIn:
                        job_no = info["job_no"])
 
 
+def allocate(pipe, agent_id):
+    info = json.loads(pipe.get(KEY_AGENT % agent_id))
+    pipe.multi()
+    if info["state"] != "available":
+        return None
+
+    pipe.srem(KEY_AVAILABLE, agent_id)
+
+    # verify the 'seen' so that it's not too old
+    if info["seen"] + SEEN_EXPIRY_TTL < int(time.time()):
+        print("Agent %s didn't check in - dropping" % agent_id)
+        info["state"] = STATE_INACTIVE
+        pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+        pipe.execute()
+        return None
+
+    job_no = info["job_no"] + 1
+    info["job_no"] = job_no
+    info["state"] = STATE_PENDING
+    info["ts_alloc"] = get_ts()
+    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+    pipe.execute()
+    return info
+
+
 class Allocate:
     def POST(self, labels):
         labels = labels.split(",")
@@ -152,47 +177,26 @@ class Allocate:
 
         lkeys = [KEY_LABEL % label for label in labels]
         lkeys.append(KEY_AVAILABLE)
-        db.sinterstore(alloc_key, lkeys)
-        db.expire(alloc_key, 60)  # forget it after a while if we don't remove it
+        with db.pipeline() as pipe:
+            while True:
+                try:
+                    pipe.watch(KEY_AVAILABLE)
+                    pipe.sinterstore(alloc_key, lkeys)
+                    agent_id = pipe.spop(alloc_key)
+                    if not agent_id:
+                        pipe.delete(alloc_key)
+                        return jsonify(status = "empty")
 
-        done = False
-        while True:
-            try:
-                agent_id = db.spop(alloc_key)
-                if not agent_id:
-                    db.delete(alloc_key)
-                    return jsonify(status = "empty")
-
-                with db.pipeline() as pipe:
-                    pipe.watch(KEY_AGENT % agent_id)
-                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
-                    pipe.multi()
-                    # Claim it.
-                    if info["state"] != "available":
-                        continue
-                    pipe.srem(KEY_AVAILABLE, agent_id)
-
-                    # verify the 'seen' so that it's not too old
-                    if info["seen"] + SEEN_EXPIRY_TTL < int(time.time()):
-                        print("Agent %s didn't check in - dropping" % agent_id)
-                        info["state"] = STATE_INACTIVE
-                    else:
-                        job_no = info["job_no"] + 1
-                        info["job_no"] = job_no
-                        info["state"] = STATE_PENDING
-                        info["ts_alloc"] = get_ts()
-                        done = True
-                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
-                    pipe.execute()
-                    if done:
+                    info = allocate(pipe, agent_id)
+                    if info:
                         break
-            except redis.WatchError:
-                continue
+                except redis.WatchError:
+                    continue
 
         db.delete(alloc_key)
         return jsonify(status = "ok", agent = agent_id,
                        ip = info["ip"], port = info["port"],
-                       job_token = "%d" % job_no,
+                       job_token = "%d" % info["job_no"],
                        url = "http://%s:%s" % (info["ip"], info["port"]))
 
 
