@@ -18,7 +18,7 @@ import ConfigParser
 
 urls = (
     '/info/([0-9a-f]+).json', 'GetSessionInfo',
-    '/start.json',            'StartJob',
+    '/start/(.+).json',       'StartJob',
     '/log/([0-9a-f]+).txt',   'GetLog',
     '/package/(.+)',          'Package',
     '/status.json',           'GetStatus')
@@ -90,10 +90,11 @@ class GetSessionInfo:
 
 
 class StartJob:
-    def POST(self):
+    def POST(self, job_token):
         if settings.job:
             abort(412, "already running")
         n = LocalNode()
+        web.config.job_no = int(job_token)
         settings.job = n.run_remote(None, web.data(), web.config._path)
         return jsonify(status = "started",
                        id = settings.job.session_id)
@@ -125,6 +126,9 @@ class GetStatus:
 class Package:
     def PUT(self, filename):
         destination = os.path.join(web.config._package_path, filename)
+        if os.path.exists(destination):
+            # Don't update it. Just skip it.
+            return
         with open(destination, "w") as f:
             f.write(web.data())
         print("Updated %s" % destination)
@@ -135,9 +139,10 @@ def send_status(status):
 
     status_str = {STATUS_AVAILABLE: "available",
                   STATUS_BUSY: "busy"}[status]
-    print("%s checking in (%s)" % (web.config.node_id, status_str))
-    client.call("/checkin/%s/%s.json" % (web.config.node_id, status_str),
-                input = json.dumps({"port": web.config.port}))
+    print("%s checking in (%s)" % (web.config.token, status_str))
+    client.call("/checkin/%s/%s/%d.json" % (web.config.token, status_str,
+                                            web.config.job_no),
+                method = "POST")
 
 STATUS_AVAILABLE, STATUS_BUSY = range(2)
 
@@ -226,6 +231,15 @@ if __name__ == "__main__":
         sys.exit(1)
 
     web.config.port = int(opts.port)
+
+    print("Registering at AHQ and getting token")
+    client = HttpClient("http://127.0.0.1:6699")
+    ret = client.call("/register/%s.json" % web.config.node_id,
+                      input = json.dumps({"port": web.config.port,
+                                          "labels": ["macos"]}))
+    print("Got token %s, job_no %s" % (ret["token"], ret["job_no"]))
+    web.config.token = ret["token"]
+    web.config.job_no = ret["job_no"]
 
     print("%s: Running from %s, listening to %d" % (web.config.node_id, web.config._path, web.config.port))
 

@@ -9,16 +9,28 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import web, redis, json, time
+import web, redis, json, time, logging
+from sci.utils import random_sha1
 
 
-KEY_AVAILABLE = 'available.%s'
+KEY_AVAILABLE = 'available'
+
+KEY_LABEL = 'label:%s'
+KEY_AGENT = 'agent:info:%s'     # -> {state:, job_no:, ts_allocated:}
+KEY_TOKEN = 'token:%s'
+KEY_ALLOCATION = "alloc:%s"
 KEY_ALL = 'all'
-KEY_AGENT = 'agent:%s'
-EXPIRY_TTL = 2 * 60
+ALLOCATION_EXPIRY_TTL = 1 * 60
+SEEN_EXPIRY_TTL = 2 * 60
+
+STATE_INACTIVE = "inactive"
+STATE_AVAIL = "available"
+STATE_PENDING = "pending"
+STATE_BUSY = "busy"
 
 urls = (
-    '/checkin/([0-9a-f]+)/([a-z]+).json', 'CheckIn',
+    '/register/([0-9a-f]+).json', 'Register',
+    '/checkin/([0-9a-f]+)/([a-z]+)/([0-9]+).json', 'CheckIn',
     '/allocate/(.+).json',       'Allocate',
 )
 
@@ -28,9 +40,18 @@ app = web.application(urls, globals())
 pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
 
 
+def get_ts():
+    return int(time.time())
+
+
 def jsonify(**kwargs):
     web.header('Content-Type', 'application/json')
     return json.dumps(kwargs)
+
+
+def abort(status, data):
+    print("> %s" % data)
+    raise web.webapi.HTTPError(status = status, data = data)
 
 
 def conn():
@@ -38,51 +59,141 @@ def conn():
     return r
 
 
-class CheckIn:
-    def POST(self, agent_id, status):
-        # TODO: Add a key to authenticate the agent
-        info = json.loads(web.data())
+class Register:
+    def POST(self, agent_id):
+        input = json.loads(web.data())
         db = conn()
-        db.set(KEY_AGENT % agent_id, json.dumps({"ip": web.ctx.ip,
-                                                 "port": info["port"],
-                                                 "status": status,
-                                                 "seen": int(time.time())}))
-        label = "any"
-        db.sadd(KEY_ALL, agent_id)
-        if status == "available":
-            db.sadd(KEY_AVAILABLE % label, agent_id)
+        token_id = random_sha1()
+        old_info = db.get(KEY_AGENT % agent_id)
+        if old_info:
+            old_info = json.loads(old_info)
         else:
-            db.srem(KEY_AVAILABLE % label, agent_id)
-        return jsonify(status = "ok")
+            old_info = {}
+
+        info = {"ip": web.ctx.ip,
+                "port": input["port"],
+                "state": STATE_INACTIVE,
+                "job_no": old_info.get("job_no", 0),
+                "ts_alloc": 0,
+                "token_id": token_id,
+                "seen": get_ts(),
+                "labels": input["labels"]}
+
+        db.set(KEY_AGENT % agent_id, json.dumps(info))
+        db.sadd(KEY_ALL, agent_id)
+
+        for label in input["labels"]:
+            db.sadd(KEY_LABEL % label, agent_id)
+
+        db.set(KEY_TOKEN % token_id, agent_id)
+        return jsonify(token = token_id,
+                       job_no = info["job_no"])
+
+
+class CheckIn:
+    def POST(self, token_id, status, job_no):
+        job_no = int(job_no)
+        now = get_ts()
+        db = conn()
+        agent_id = db.get(KEY_TOKEN % token_id)
+        if agent_id is None:
+            abort(404, "Invalid token")
+
+        while True:
+            try:
+                with db.pipeline() as pipe:
+                    pipe.watch(KEY_AGENT % agent_id)
+                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
+                    pipe.multi()
+
+                    info["seen"] = now
+                    if info["state"] == STATE_INACTIVE and status == "available":
+                        info["state"] = STATE_AVAIL
+                        pipe.sadd(KEY_AVAILABLE, agent_id)
+                    elif info["state"] == STATE_AVAIL and status == "available":
+                        pass
+                    elif info["state"] == STATE_PENDING and status == "busy" and \
+                            info["job_no"] == job_no:
+                        info["state"] = STATE_BUSY
+                    elif info["state"] == STATE_PENDING and \
+                            status == "available" and \
+                            info["ts_alloc"] + ALLOCATION_EXPIRY_TTL < now:
+                        print("%s expired allocation" % agent_id)
+                        info["state"] = STATE_AVAIL
+                        pipe.sadd(KEY_AVAILABLE, agent_id)
+                    elif info["state"] == STATE_BUSY and status == "available" and \
+                            info["job_no"] == job_no:
+                        info["state"] = STATE_AVAIL
+                        pipe.sadd(KEY_AVAILABLE, agent_id)
+                    elif info["state"] == STATE_BUSY and status == "busy":
+                        pass
+                    else:
+                        logging.error("info = %s, status = %s, job_no = %s" % \
+                                          (info, status, job_no))
+                    # We always update this - to refresh 'seen'
+                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+                    pipe.execute()
+                    break
+            except redis.WatchError:
+                continue
+
+        return jsonify(status = "ok",
+                       state = info["state"],
+                       job_no = info["job_no"])
 
 
 class Allocate:
-    def POST(self, label):
-        label = "any"  # we don't support anything else yet
+    def POST(self, labels):
+        labels = labels.split(",")
+        labels.remove("any")
+
         db = conn()
+        alloc_key = KEY_ALLOCATION % random_sha1()
+
+        lkeys = [KEY_LABEL % label for label in labels]
+        lkeys.append(KEY_AVAILABLE)
+        db.sinterstore(alloc_key, lkeys)
+        db.expire(alloc_key, 60)  # forget it after a while if we don't remove it
+
+        done = False
         while True:
-            agent_id = db.spop(KEY_AVAILABLE % label)
-            if agent_id is None:
-                return jsonify(status = "empty")
-            # verify the 'seen' so that it's not too old
-            info = db.get(KEY_AGENT % agent_id)
-            if info is None:
-                # Shouldn't happen. Try the next one
-                print("FAILED TO FIND INFO ABOUT %s" % agent_id)
+            try:
+                agent_id = db.spop(alloc_key)
+                if not agent_id:
+                    db.delete(alloc_key)
+                    return jsonify(status = "empty")
+
+                with db.pipeline() as pipe:
+                    pipe.watch(KEY_AGENT % agent_id)
+                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
+                    pipe.multi()
+                    # Claim it.
+                    if info["state"] != "available":
+                        continue
+                    pipe.srem(KEY_AVAILABLE, agent_id)
+
+                    # verify the 'seen' so that it's not too old
+                    if info["seen"] + SEEN_EXPIRY_TTL < int(time.time()):
+                        print("Agent %s didn't check in - dropping" % agent_id)
+                        info["state"] = STATE_INACTIVE
+                    else:
+                        job_no = info["job_no"] + 1
+                        info["job_no"] = job_no
+                        info["state"] = STATE_PENDING
+                        info["ts_alloc"] = get_ts()
+                        done = True
+                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+                    pipe.execute()
+                    if done:
+                        break
+            except redis.WatchError:
                 continue
-            info = json.loads(info)
-            if info["status"] != "available":
-                # A race condition - the agent just went offline
-                print("Agent %s recently switched (%s)" % (agent_id, info["status"]))
-                continue
-            if info["seen"] + EXPIRY_TTL < int(time.time()):
-                print("Agent %s didn't check in - dropping" % agent_id)
-                continue
-            info["status"] = "allocated"
-            db.set(KEY_AGENT % agent_id, json.dumps(info))
-            return jsonify(status = "ok", agent = agent_id,
-                           ip = info["ip"], port = info["port"],
-                           url = "http://%s:%s" % (info["ip"], info["port"]))
+
+        db.delete(alloc_key)
+        return jsonify(status = "ok", agent = agent_id,
+                       ip = info["ip"], port = info["port"],
+                       job_token = "%d" % job_no,
+                       url = "http://%s:%s" % (info["ip"], info["port"]))
 
 
 if __name__ == "__main__":

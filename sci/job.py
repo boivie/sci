@@ -84,7 +84,7 @@ class Job(object):
             if result["status"] == "ok":
                 logging.debug("Allocated %s (%s)" % (result["agent"],
                                                      result["url"]))
-                return RemoteNode(result["url"])
+                return RemoteNode(result["url"], result["job_token"])
             if result["status"] != "empty":
                 raise Exception("Failed to allocate slave")
 

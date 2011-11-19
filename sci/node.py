@@ -138,8 +138,9 @@ class RemoteDetachedJob(DetachedJob):
 
 
 class RemoteNode(Node):
-    def __init__(self, url):
+    def __init__(self, url, job_token):
         self.client = HttpClient(url)
+        self.job_token = job_token
 
     def run_remote(self, job, data):
         # Upload the package to this slave
@@ -148,7 +149,7 @@ class RemoteNode(Node):
                          method = "PUT",
                          input = open(job.location.package, "rb"),
                          raw = True)
-        ret = self.client.call("/start.json", input = data)
+        ret = self.client.call("/start/%s.json" % self.job_token, input = data)
         if ret["status"] != "started":
             raise Exception("Bad status")
         return RemoteDetachedJob(ret["id"], self.client)
