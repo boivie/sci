@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import time, itertools
+import time
 from sci import Job
 
 job = Job(__name__, debug = True)
@@ -98,20 +98,13 @@ def run_single_matrix_job(product, variant):
 
 @job.step("Run matrix jobs")
 def run_matrix_jobs():
-    """The async function runs the step asynchronously on (possibly)
-       another node. This step (run_matrix_jobs) will wait for all
-       the detached jobs to finish before it returns, but in this case
-       we call ajob.get() which blocks until that job completes, and
-       returns the return value from that step - in this:
-       'run_single_matrix_job'"""
-    comb = itertools.product(products(), variants())
-    async_jobs = []
-    for product, variant in comb:
-        ajob = run_single_matrix_job.async(product, variant)
-        async_jobs.append(ajob)
+    """Running jobs asynchronously"""
+    for product in products():
+        for variant in variants():
+            job.agents.async(run_single_matrix_job, product, variant)
 
-    for ajob in async_jobs:
-        print("Result: " + ajob.get())
+    for result in job.agents.run():
+        print("Result: " + result)
 
 
 @job.step("Send Report")

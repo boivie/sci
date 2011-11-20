@@ -8,16 +8,15 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import re, os, socket, time, sys, logging, types, subprocess
+import re, os, socket, time, sys, types, subprocess, logging
 from datetime import datetime
 from .config import Config
 from .environment import Environment
 from .params import Parameters, ParameterError
-from .node import LocalNode, RemoteNode
 from .artifacts import Artifacts
+from .agents import Agents
 from .session import Session
 from .package import Package
-from .http_client import HttpClient
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -38,25 +37,14 @@ class Step(object):
         self.job = job
         self.name = name
         self.fun = fun
-        self.detached_jobs = []
 
     def __call__(self, *args, **kwargs):
         self.job._current_step = self
         self.job._print_banner("Step: '%s'" % self.name)
         ret = self.fun(*args, **kwargs)
         # Wait for any unfinished detached jobs
-        for job in self.detached_jobs:
-            job.join()
-            self.job._print_banner("%s finished" % job.session_id)
-        self.detached_jobs = []
+        self.job.agents.run()
         return ret
-
-    def async(self, *args, **kwargs):
-        node = self.job._allocate_node()
-        rjob = node.run(self.job, self.fun, args, kwargs)
-        self.job._current_step.detached_jobs.append(rjob)
-        self.job._print_banner("%s @ %s" % (self.name, rjob.session_id))
-        return rjob
 
 
 class Job(object):
@@ -67,42 +55,17 @@ class Job(object):
         self.steps = []
         self._mainfn = None
         self._description = ""
-        self.env = self._create_environment()
         self.id = None
-        self._params = Parameters(self.env)
-        self.artifacts = Artifacts(self, "http://localhost:6698")
         self.debug = debug
         self._master_url = os.environ.get("SCI_MASTER_URL")
         self._job_key = os.environ.get("SCI_JOB_KEY")
         self._location = None
         self._current_step = None
 
-    def _do_allocate_node(self, url):
-        retry_cnt = 0
-        while True:
-            result = HttpClient(url).call("/allocate/any.json", method = "POST")
-            if result["status"] == "ok":
-                logging.debug("Allocated %s (%s)" % (result["agent"],
-                                                     result["url"]))
-                return RemoteNode(result["url"], result["job_token"])
-            if result["status"] != "empty":
-                raise Exception("Failed to allocate slave")
-
-            # We must wait for a slave to be available.
-            if retry_cnt == 0:
-                logging.info("No slaves available. Waiting.")
-            elif (retry_cnt % 10) == 0:
-                logging.info("Waited %s seconds for a slave..." % retry_cnt)
-            time.sleep(1)
-            retry_cnt += 1
-
-    def _allocate_node(self):
-        if self._master_url is None:
-            # Can not allocate a node - use local node
-            return LocalNode()
-        else:
-            # Allocate one using the ahq
-            return self._do_allocate_node(self._master_url)
+        self.env = self._create_environment()
+        self._params = Parameters(self.env)
+        self.artifacts = Artifacts(self, "http://localhost:6698")
+        self.agents = Agents(self, self._master_url)
 
     def set_description(self, description):
         self._description = self.format(description)
@@ -263,7 +226,7 @@ class Job(object):
 
            This method is only used when running a job manually by
            invoking the job's script from the command line."""
-        #logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG)
 
         # Create a package, so that we mimic how real jobs work
         mfilename = sys.modules[self._import_name].__file__
