@@ -13,16 +13,17 @@ import web, redis, json, time, logging
 from sci.utils import random_sha1
 
 
-KEY_AVAILABLE = 'available'
-
-KEY_LABEL = 'label:%s'
+KEY_LABEL = 'ahq:label:%s'
 KEY_AGENT = 'agent:info:%s'     # -> {state:, job_no:, ts_allocated:}
-KEY_TOKEN = 'token:%s'
-KEY_ALLOCATION = "alloc:%s"
-KEY_TICKET_INFO = 'ticket:info:%s'
-KEY_TICKET_SLAVES = 'ticket:q:%s'
-KEY_QUEUE = 'ticket_queue'
-KEY_ALL = 'all'
+KEY_TOKEN = 'ahq:token:%s'
+KEY_ALLOCATION = "ahq:alloc:%s"
+KEY_TICKET_INFO = 'ahq:ticket:info:%s'
+KEY_TICKET_QUEUE = 'ahq:ticket:q:%s'
+KEY_QUEUE = 'ahq:ticketq'
+
+KEY_ALL = 'agents:all'
+KEY_AVAILABLE = 'agents:avail'
+
 ALLOCATION_EXPIRY_TTL = 1 * 60
 SEEN_EXPIRY_TTL = 2 * 60
 KEY_TICKET_TTL = 1 * 60
@@ -41,8 +42,6 @@ urls = (
 )
 
 app = web.application(urls, globals())
-
-
 pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
 
 
@@ -118,7 +117,7 @@ def make_avail_or_give_to_queue(pipe, agent_id, agent_info):
             expired_tickets.append(ticket_id)
             for t in expired_tickets:
                 pipe.zrem(KEY_QUEUE, t)
-            pipe.rpush(KEY_TICKET_SLAVES % ticket_id, agent_id)
+            pipe.rpush(KEY_TICKET_QUEUE % ticket_id, agent_id)
             return ticket_id
 
     # Nope. No tickets -> put it as available.
@@ -273,7 +272,7 @@ class AllocateTickets:
     def POST(self):
         input = json.loads(web.data())
         tickets = input["tickets"]
-        ticket_keys = [KEY_TICKET_SLAVES % t for t in tickets]
+        ticket_keys = [KEY_TICKET_QUEUE % t for t in tickets]
         db = conn()
         count = 0
         while True:
