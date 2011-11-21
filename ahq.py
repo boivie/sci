@@ -37,6 +37,7 @@ urls = (
     '/checkin/([0-9a-f]+)/([a-z]+)/([0-9]+).json', 'CheckIn',
     '/allocate.json',         'AllocateLabels',
     '/tickets.json',          'AllocateTickets',
+    '/info.json',             'GetInfo'
 )
 
 app = web.application(urls, globals())
@@ -296,6 +297,32 @@ class AllocateTickets:
             logging.debug("Traded A%s from T%s" % (agent_id, ticket_id))
             yield json.dumps(res)
             break
+
+
+class GetInfo:
+    def GET(self):
+        # Get queue
+        db = conn()
+        queue = []
+        for ticket_id in db.zrange(KEY_QUEUE, 0, -1):
+            info = db.get(KEY_TICKET_INFO % ticket_id)
+            if info:
+                info = json.loads(info)
+                queue.append({"ticket": ticket_id,
+                              "labels": info["labels"]})
+        all = []
+        for agent_id in db.smembers(KEY_ALL):
+            info = db.get(KEY_AGENT % agent_id)
+            if info:
+                info = json.loads(info)
+                all.append({"ip": info["ip"],
+                            "port": info["port"],
+                            "state": info["state"],
+                            "seen": info["seen"],
+                            "labels": info["labels"]})
+        return jsonify(queue = queue,
+                       agent_no = len(all),
+                       agents = all)
 
 
 if __name__ == "__main__":
