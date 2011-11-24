@@ -65,8 +65,7 @@ class DetachedJob(object):
 class Node(object):
     """Represents a node"""
     def _serialize(self, job, fun, args, kwargs):
-        return {"location": {"package": job.location.package,
-                             "filename": job.location.filename},
+        return {"build_id": job.build_id,
                 "funname": fun.__name__,
                 "args": args,
                 "kwargs": kwargs,
@@ -143,12 +142,6 @@ class RemoteNode(Node):
         self.job_token = job_token
 
     def run_remote(self, job, data):
-        # Upload the package to this slave
-        package = os.path.basename(job.location.package)
-        self.client.call("/package/%s" % package,
-                         method = "PUT",
-                         input = open(job.location.package, "rb"),
-                         raw = True)
         ret = self.client.call("/start/%s.json" % self.job_token, input = data)
         if ret["status"] != "started":
             raise Exception("Bad status")

@@ -8,7 +8,7 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import re, os, socket, time, sys, types, subprocess, logging
+import re, os, socket, time, sys, types, subprocess, logging, json
 from datetime import datetime
 from .config import Config
 from .environment import Environment
@@ -16,7 +16,8 @@ from .params import Parameters, ParameterError
 from .artifacts import Artifacts
 from .agents import Agents
 from .session import Session
-from .package import Package
+from .bootstrap import Bootstrap
+from .http_client import HttpClient
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -24,12 +25,6 @@ re_var = re.compile("{{(.*?)}}")
 
 class JobException(Exception):
     pass
-
-
-class JobLocation(object):
-    def __init__(self, package, filename):
-        self.package = package
-        self.filename = filename
 
 
 class Step(object):
@@ -55,16 +50,16 @@ class Job(object):
         self.steps = []
         self._mainfn = None
         self._description = ""
-        self.id = None
+        self.build_id = None
         self.debug = debug
         self._job_key = os.environ.get("SCI_JOB_KEY")
-        self._location = None
         self._current_step = None
 
         self.env = self._create_environment()
         self._params = Parameters(self.env)
         self.artifacts = Artifacts(self, "http://localhost:6698")
         self.agents = Agents(self, "http://localhost:6699")
+        self.jobserver = "http://localhost:6697"
 
     def set_description(self, description):
         self._description = self.format(description)
@@ -83,16 +78,6 @@ class Job(object):
         return self._session
 
     session = property(get_session, set_session)
-
-    def set_location(self, location):
-        if self._location:
-            raise JobException("The location can only be set once")
-        self._location = location
-
-    def get_location(self):
-        return self._location
-
-    location = property(get_location, set_location)
 
     def parameter(self, name, description = "", default = None,
                   **kwargs):
@@ -171,15 +156,19 @@ class Job(object):
                 self.env[k] = v
         return opts, args
 
-    def _start(self, session, entrypoint, params, args, kwargs, env, flags):
+    def _start(self, session, entrypoint, params, args,
+               kwargs, env, flags, build_id = None, build_name = None):
         self.session = session
-        if env is None:  # The root of all jobs
-            self.id = session.id
-            self.env.define("SCI_JOB_ID", "The unique job identifier",
+        if build_id:
+            self.build_id = build_id
+            self.env.define("SCI_BUILD_ID", "The unique build identifier",
                             read_only = True, source = "initial environment",
-                            value = self.id)
+                            value = self.build_id)
+            self.env.define("SCI_BUILD_NAME", "The unique build name",
+                            read_only = True, source = "initial environment",
+                            value = build_name)
         else:
-            self.id = env["SCI_JOB_ID"]
+            self.build_id = env["SCI_BUILD_ID"]
 
         if flags.get("manually-started", False):
             opts, _ = self._parse_arguments()
@@ -188,10 +177,9 @@ class Job(object):
         self._print_banner("Preparing Job", dash = "=")
 
         # Read global config file
-        config = Config.from_env("SCI_CONFIG")
+        config = Config.from_pyfile(os.path.join(session.path, 'config.py'))
         if config:
             self.env.merge(config)
-            print("Loaded configuration from %s" % os.environ["SCI_CONFIG"])
 
         # Merge environments
         if env:
@@ -210,9 +198,7 @@ class Job(object):
                 print("Run with --list-parameters to list them.")
                 sys.exit(2)
 
-        print("Job ID: %s" % self.id)
-        print("Location %s/%s" % (self.location.package,
-                                  self.location.filename))
+        print("Build-Id: %s" % self.build_id)
         self.env.print_values()
 
         self._print_banner("Starting Job", dash = "=")
@@ -226,17 +212,29 @@ class Job(object):
            This method is only used when running a job manually by
            invoking the job's script from the command line."""
         logging.basicConfig(level=logging.DEBUG)
+        client = HttpClient(self.jobserver)
 
-        # Create a package, so that we mimic how real jobs work
-        mfilename = sys.modules[self._import_name].__file__
-        this_dir = os.path.dirname(os.path.realpath(mfilename))
-        output_dir = os.path.join(os.path.dirname(__file__), "packages")
-        package = Package.create(this_dir, output_dir)
+        # Save the recipe at the job server
+        contents = open(sys.modules[self._import_name].__file__, "rb").read()
+        result = client.call("/recipe/private.json",
+                             input = json.dumps({"contents": contents}))
+        recipe_id = result['ref']
 
+        # Update the job to use this recipe
+        contents = {'recipe': recipe_id}
+        result = client.call("/job/private.json",
+                             input = json.dumps({"contents": contents}))
+        job_ref = result['ref']
+
+        # Create a build
+        build_info = client.call('/build/create/%s.json' % job_ref,
+                                 method = 'POST')
         session = Session.create()
         flags = {"main-job": True, "manually-started": True}
-        return package.run(session, os.path.basename(mfilename),
-                           params = params, flags = flags)
+
+        return Bootstrap.run(session, build_id = build_info['id'],
+                             jobserver = self.jobserver,
+                             params = params, flags = flags)
 
     def run(self, cmd, **kwargs):
         """Runs a command in a shell

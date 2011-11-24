@@ -86,7 +86,7 @@ class Artifacts(ArtifactsBase):
         self.url = storage_server
 
     def _add(self, local_filename, remote_filename, **kwargs):
-        url = "/f/%s/%s" % (self.job.id, remote_filename)
+        url = "/f/%s/%s" % (self.job.build_id, remote_filename)
         result = self.client.call(url, method = "PUT",
                                   input = open(local_filename, "rb"))
         if result["status"] != "ok":
@@ -94,7 +94,7 @@ class Artifacts(ArtifactsBase):
                                         (local_filename, result["status"]))
 
     def _get(self, remote_filename, local_filename, **kwargs):
-        path = "/f/%s/%s" % (self.job.id, remote_filename)
+        path = "/f/%s/%s" % (self.job.build_id, remote_filename)
         with HttpRequest(self.url, path) as src:
             with open(local_filename, "wb") as dest:
                 shutil.copyfileobj(src, dest)

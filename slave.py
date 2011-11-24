@@ -20,7 +20,6 @@ urls = (
     '/info/([0-9a-f]+).json', 'GetSessionInfo',
     '/start/(.+).json',       'StartJob',
     '/log/([0-9a-f]+).txt',   'GetLog',
-    '/package/(.+)',          'Package',
     '/status.json',           'GetStatus')
 
 EXPIRY_TTL = 60
@@ -123,17 +122,6 @@ class GetStatus:
             return jsonify(status = "idle")
 
 
-class Package:
-    def PUT(self, filename):
-        destination = os.path.join(web.config._package_path, filename)
-        if os.path.exists(destination):
-            # Don't update it. Just skip it.
-            return
-        with open(destination, "w") as f:
-            f.write(web.data())
-        print("Updated %s" % destination)
-
-
 def send_status(status):
     client = HttpClient("http://127.0.0.1:6699")
 
@@ -213,9 +201,6 @@ if __name__ == "__main__":
         if not os.path.exists(opts.path):
             os.makedirs(opts.path)
         web.config._path = os.path.realpath(opts.path)
-    web.config._package_path = os.path.join(web.config._path, "packages")
-    if not os.path.exists(web.config._package_path):
-        os.makedirs(web.config._package_path)
 
     Session.set_root_path(web.config._path)
 
