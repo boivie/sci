@@ -134,17 +134,13 @@ class Job(object):
         print("%s%s[ %s ]%s" % (prefix, dash * dash_left,
                                  text, dash * dash_right))
 
-    def _parse_arguments(self):
+    def _parse_arguments(self, env):
         # Parse parameters
         parser = OptionParser()
-        parser.add_option("-c", "--config", dest = "config",
-                          help = "configuration file to use")
         parser.add_option("--list-parameters", dest = "list_parameters",
                           action = "store_true",
                           help = "List job parameters and quit")
         (opts, args) = parser.parse_args()
-        if opts.config:
-            self.env.merge(Config.from_pyfile(opts.config))
 
         if opts.list_parameters:
             self._params.print_help()
@@ -153,11 +149,10 @@ class Job(object):
         for arg in args:
             if "=" in arg:
                 k, v = arg.split("=", 2)
-                self.env[k] = v
-        return opts, args
+                env[k] = v
 
     def _start(self, session, entrypoint, params, args,
-               kwargs, env, flags, build_id = None, build_name = None):
+               kwargs, env, build_id = None, build_name = None):
         self.session = session
         if build_id:
             self.build_id = build_id
@@ -170,8 +165,6 @@ class Job(object):
         else:
             self.build_id = env["SCI_BUILD_ID"]
 
-        if flags.get("manually-started", False):
-            opts, _ = self._parse_arguments()
         # Must set time first. It's used when printing
         self.start_time = time.time()
         self._print_banner("Preparing Job", dash = "=")
@@ -189,7 +182,7 @@ class Job(object):
         for k in params:
             self.env[k] = params[k]
 
-        if flags.get("main-job", False):
+        if build_id:
             try:
                 self._params.evaluate()
             except ParameterError as e:
@@ -230,11 +223,14 @@ class Job(object):
         build_info = client.call('/build/create/%s.json' % job_ref,
                                  method = 'POST')
         session = Session.create()
-        flags = {"main-job": True, "manually-started": True}
+
+        env = Environment()
+        self._parse_arguments(env)
 
         return Bootstrap.run(session, build_id = build_info['id'],
                              jobserver = self.jobserver,
-                             params = params, flags = flags)
+                             params = params,
+                             env = env.serialize())
 
     def run(self, cmd, **kwargs):
         """Runs a command in a shell

@@ -14,5 +14,4 @@ session_id = sys.argv[1]
 session = Session.load(session_id)
 
 Bootstrap.run(session, data["build_id"], "http://localhost:6697", data["funname"],
-              args = data["args"], kwargs = data["kwargs"],
-              env = data["env"])
+              args = data["args"], kwargs = data["kwargs"], env = data["env"])

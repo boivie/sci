@@ -42,7 +42,7 @@ class Bootstrap(object):
 
     @classmethod
     def run(cls, session, build_id, jobserver, entrypoint_name = "",
-            params = {}, args = [], kwargs = {}, env = None, flags = {}):
+            params = {}, args = [], kwargs = {}, env = None):
         # Fetch build information
         build_info = HttpClient(jobserver).call('/build/%s.json' % build_id)
         build_info = build_info['build']
@@ -68,7 +68,7 @@ class Bootstrap(object):
             env = Environment.deserialize(env)
 
         ret = job._start(session, entrypoint, params, args, kwargs,
-                         env, flags, build_id = build_id,
+                         env, build_id = build_id,
                          build_name = build_info['name'])
 
         # Update the session
