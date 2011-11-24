@@ -224,48 +224,59 @@ def get_ticket(pipe, labels):
     return ticket_id
 
 
-def format_result(agent_id, info):
+def format_result(info):
     url = "http://%s:%s" % (info["ip"], info["port"])
-    return dict(status = "ok", agent = agent_id,
+    return dict(status = "ok", agent = info['id'],
                 ip = info["ip"], port = info["port"],
                 job_token = "%d" % info["job_no"],
                 url = url)
+
+
+def allocate_by_labels(labels):
+    labels.remove("any")
+
+    db = conn()
+    alloc_key = KEY_ALLOCATION % random_sha1()
+
+    lkeys = [KEY_LABEL % label for label in labels]
+    lkeys.append(KEY_AVAILABLE)
+
+    while True:
+        with db.pipeline() as pipe:
+            try:
+                pipe.watch(KEY_AVAILABLE)
+                pipe.sinterstore(alloc_key, lkeys)
+                agent_id = pipe.spop(alloc_key)
+                if not agent_id:
+                    ticket_id = get_ticket(pipe, labels)
+                    pipe.delete(alloc_key)
+                    pipe.execute()
+                    return None, ticket_id
+
+                info = allocate(pipe, agent_id)
+                if not info:
+                    continue
+                pipe.delete(alloc_key)
+                pipe.execute()
+                info['id'] = agent_id
+                return info, None
+            except redis.WatchError:
+                continue
 
 
 class AllocateLabels:
     def POST(self):
         input = json.loads(web.data())
         labels = input["labels"]
-        labels.remove("any")
 
-        db = conn()
-        alloc_key = KEY_ALLOCATION % random_sha1()
+        agent_info, ticket = allocate_by_labels(labels)
 
-        lkeys = [KEY_LABEL % label for label in labels]
-        lkeys.append(KEY_AVAILABLE)
-
-        while True:
-            with db.pipeline() as pipe:
-                try:
-                    pipe.watch(KEY_AVAILABLE)
-                    pipe.sinterstore(alloc_key, lkeys)
-                    agent_id = pipe.spop(alloc_key)
-                    if not agent_id:
-                        ticket_id = get_ticket(pipe, labels)
-                        pipe.delete(alloc_key)
-                        pipe.execute()
-                        logging.debug("Handed out T%s" % ticket_id)
-                        return jsonify(status = "queued", ticket = ticket_id)
-
-                    info = allocate(pipe, agent_id)
-                    if not info:
-                        continue
-                    pipe.delete(alloc_key)
-                    pipe.execute()
-                    logging.debug("Allocated A%s" % agent_id)
-                    return json.dumps(format_result(agent_id, info))
-                except redis.WatchError:
-                    continue
+        if agent_info:
+            logging.debug("Allocated A%s" % agent_info['id'])
+            return json.dumps(format_result(agent_info))
+        else:
+            logging.debug("Handed out T%s" % ticket)
+            return jsonify(status = 'queued', ticket = ticket)
 
 
 class AllocateTickets:
@@ -290,7 +301,8 @@ class AllocateTickets:
             ticket_id = ticket_key[-40:]
             # It is aready prepared for us. Return it.
             info = json.loads(db.get(KEY_AGENT % agent_id))
-            res = format_result(agent_id, info)
+            info['id'] = agent_id
+            res = format_result(info)
             res["ticket"] = ticket_id
             tickets.remove(ticket_id)
             logging.debug("Traded A%s from T%s" % (agent_id, ticket_id))
