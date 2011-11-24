@@ -49,7 +49,7 @@ class Agents(object):
         self.job = job
         self._ahq_url = url
 
-    def async(self, step, *args, **kwargs):
+    def async(self, step, args = [], kwargs = {}):
         ok, node_or_ticket = Agents._allocate_node(self._ahq_url)
         agent = Agent(step, args, kwargs, node_or_ticket)
         if ok:

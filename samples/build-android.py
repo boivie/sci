@@ -101,7 +101,7 @@ def run_matrix_jobs():
     """Running jobs asynchronously"""
     for product in products():
         for variant in variants():
-            job.agents.async(run_single_matrix_job, product, variant)
+            job.agents.async(run_single_matrix_job, args = [product, variant])
 
     for result in job.agents.run():
         print("Result: " + result)

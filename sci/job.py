@@ -57,7 +57,6 @@ class Job(object):
         self._description = ""
         self.id = None
         self.debug = debug
-        self._master_url = os.environ.get("SCI_MASTER_URL")
         self._job_key = os.environ.get("SCI_JOB_KEY")
         self._location = None
         self._current_step = None
@@ -65,7 +64,7 @@ class Job(object):
         self.env = self._create_environment()
         self._params = Parameters(self.env)
         self.artifacts = Artifacts(self, "http://localhost:6698")
-        self.agents = Agents(self, self._master_url)
+        self.agents = Agents(self, "http://localhost:6699")
 
     def set_description(self, description):
         self._description = self.format(description)
