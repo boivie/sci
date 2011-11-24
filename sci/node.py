@@ -66,6 +66,7 @@ class Node(object):
     """Represents a node"""
     def _serialize(self, job, fun, args, kwargs):
         return {"build_id": job.build_id,
+                "job_server": job.jobserver,
                 "funname": fun.__name__,
                 "args": args,
                 "kwargs": kwargs,

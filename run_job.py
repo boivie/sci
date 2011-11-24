@@ -13,5 +13,5 @@ data = json.loads(sys.stdin.read())
 session_id = sys.argv[1]
 session = Session.load(session_id)
 
-Bootstrap.run(session, data["build_id"], "http://localhost:6697", data["funname"],
+Bootstrap.run(session, data["build_id"], data["job_server"], data["funname"],
               args = data["args"], kwargs = data["kwargs"], env = data["env"])
