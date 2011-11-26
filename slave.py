@@ -110,16 +110,23 @@ def send_status(status):
     client = HttpClient("http://127.0.0.1:6699")
 
     status_str = {STATUS_AVAILABLE: "available",
-                  STATUS_BUSY: "busy",
-                  STATUS_PING: 'ping'}[status]
+                  STATUS_BUSY: "busy"}[status]
     print("%s checking in (%s)" % (web.config.token, status_str))
-    client.call("/checkin/%s/%s/%d.json" % (web.config.token, status_str,
+    client.call("/%s/checkin/%s/%d.json" % (web.config.token, status_str,
                                             web.config.job_no),
                 method = "POST")
     web.config.last_status = int(time.time())
 
 
-STATUS_AVAILABLE, STATUS_BUSY, STATUS_PING = range(3)
+def send_ping():
+    client = HttpClient("http://127.0.0.1:6699")
+    print("%s pinging" % web.config.token)
+    client.call("/%s/ping.json" % web.config.token,
+                method = "POST")
+    web.config.last_status = int(time.time())
+
+
+STATUS_AVAILABLE, STATUS_BUSY = range(2)
 
 
 def ttl_expired():
@@ -138,7 +145,7 @@ class StatusThread(threading.Thread):
         time.sleep(3)
         while not self.kill_received:
             if ttl_expired():
-                send_status(STATUS_PING)
+                send_ping()
             time.sleep(1)
 
 
@@ -213,7 +220,7 @@ if __name__ == "__main__":
 
     print("Registering at AHQ and getting token")
     client = HttpClient("http://127.0.0.1:6699")
-    ret = client.call("/register/%s.json" % web.config.node_id,
+    ret = client.call("/A%s/register.json" % web.config.node_id,
                       input = json.dumps({"port": web.config.port,
                                           "labels": ["macos"]}))
     print("Got token %s, job_no %s" % (ret["token"], ret["job_no"]))

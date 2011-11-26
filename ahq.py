@@ -34,8 +34,9 @@ STATE_PENDING = "pending"
 STATE_BUSY = "busy"
 
 urls = (
-    '/register/([0-9a-f]+).json', 'Register',
-    '/checkin/([0-9a-f]+)/([a-z]+)/([0-9]+).json', 'CheckIn',
+    '/A([0-9a-f]{40})/register.json',                  'Register',
+    '/N([0-9a-f]{40})/checkin/([a-z]+)/([0-9]+).json', 'CheckIn',
+    '/N([0-9a-f]{40})/ping.json',                      'Ping',
     '/allocate.json',         'AllocateLabels',
     '/tickets.json',          'AllocateTickets',
     '/info.json',             'GetInfo'
@@ -90,7 +91,7 @@ class Register:
             db.sadd(KEY_LABEL % label, agent_id)
 
         db.set(KEY_TOKEN % token_id, agent_id)
-        return jsonify(token = token_id,
+        return jsonify(token = 'N' + token_id,
                        job_no = info["job_no"])
 
 
@@ -147,9 +148,7 @@ class CheckIn:
                     info = json.loads(pipe.get(KEY_AGENT % agent_id))
 
                     info["seen"] = now
-                    if status == 'ping':
-                        pipe.multi()
-                    elif info["state"] == STATE_INACTIVE and status == "available":
+                    if info["state"] == STATE_INACTIVE and status == "available":
                         ticket = make_avail_or_give_to_queue(pipe, agent_id, info)
                     elif info["state"] == STATE_AVAIL and status == "available":
                         pipe.multi()
@@ -188,6 +187,30 @@ class CheckIn:
         return jsonify(status = "ok",
                        state = info["state"],
                        job_no = info["job_no"])
+
+
+class Ping:
+    def POST(self, token_id):
+        db = conn()
+        agent_id = db.get(KEY_TOKEN % token_id)
+        if agent_id is None:
+            abort(404, "Invalid token")
+
+        while True:
+            try:
+                with db.pipeline() as pipe:
+                    pipe.watch(KEY_AGENT % agent_id)
+                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
+
+                    info["seen"] = get_ts()
+                    pipe.multi()
+                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+                    pipe.execute()
+                    break
+            except redis.WatchError:
+                continue
+
+        return jsonify(status = "ok")
 
 
 def allocate(pipe, agent_id):
