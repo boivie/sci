@@ -64,7 +64,8 @@ class DetachedJob(object):
 
 class Node(object):
     """Represents a node"""
-    def _serialize(self, job, fun, args, kwargs):
+    @classmethod
+    def _serialize(cls, job, fun, args, kwargs):
         return {"build_id": job.build_id,
                 "job_server": job.jobserver,
                 "funname": fun.__name__,
@@ -77,7 +78,7 @@ class Node(object):
 
     def run(self, job, fun, args, kwargs):
         """Runs a job on this node."""
-        data = self._serialize(job, fun, args, kwargs)
+        data = Node._serialize(job, fun, args, kwargs)
         return self.run_remote(job, json.dumps(data))
 
 

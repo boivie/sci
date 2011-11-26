@@ -15,20 +15,19 @@ from sci.node import LocalNode
 from sci.http_client import HttpClient
 from sci.utils import random_sha1
 import ConfigParser
-from Queue import Queue
+from Queue import Queue, Full, Empty
 
 urls = (
-    '/info/([0-9a-f]+).json', 'GetSessionInfo',
-    '/start/(.+).json',       'StartJob',
-    '/log/([0-9a-f]+).txt',   'GetLog')
+    '/D([0-9a-f]{40})/dispatch.json', 'StartJob',
+)
 
 EXPIRY_TTL = 60
 
 web.config.debug = False
 app = web.application(urls, globals())
-jobqueue = Queue()
-available = threading.Event()
-available_lock = threading.RLock()
+
+requestq = Queue()
+cv = threading.Condition()
 
 
 def get_config(path):
@@ -60,35 +59,12 @@ def abort(status, data):
     raise web.webapi.HTTPError(status = status, data = data)
 
 
-class GetSessionInfo:
-    def GET(self, sid):
-        web.header('Content-Type', 'application/json')
-        session = Session.load(sid)
-        if not session:
-            abort(404, "session not found")
-
-        args = web.input(block = '0')
-        if args["block"] == '1':
-            while not available.wait(10):
-                yield "\n"
-
-        session = Session.load(sid)
-        yield json.dumps({"state": session.state,
-                          "return_value": session.return_value})
-
-
 class StartJob:
-    def POST(self, job_token):
-        with available_lock:
-            if not available.is_set():
-                abort(412, "Already running")
-            available.clear()
-        n = LocalNode()
-        web.config.job_no = int(job_token)
-        job = n.run_remote(None, web.data(), web.config._path)
-        jobqueue.put(job)
-        return jsonify(status = "started",
-                       id = job.session_id)
+    def POST(self, dispatch_id):
+        if not put_item({'id': dispatch_id,
+                         'data': web.data()}):
+            abort(412, "Busy")
+        return jsonify(status = "started")
 
 
 class GetLog:
@@ -106,27 +82,33 @@ class GetLog:
                 yield data
 
 
-def send_status(status):
-    client = HttpClient("http://127.0.0.1:6699")
-
-    status_str = {STATUS_AVAILABLE: "available",
-                  STATUS_BUSY: "busy"}[status]
-    print("%s checking in (%s)" % (web.config.token, status_str))
-    client.call("/%s/checkin/%s/%d.json" % (web.config.token, status_str,
-                                            web.config.job_no),
-                method = "POST")
+def send_available(dispatch_id = None, job_result = None):
     web.config.last_status = int(time.time())
+    print("%s checking in (available)" % web.config.token)
+
+    client = HttpClient("http://127.0.0.1:6699")
+    result = client.call("/%s/available.json" % web.config.token,
+                         input = json.dumps({'id': dispatch_id,
+                                             'result': job_result}))
+    return result.get('do')
+
+
+def send_busy():
+    web.config.last_status = int(time.time())
+    print("%s checking in (busy)" % web.config.token)
+
+    client = HttpClient("http://127.0.0.1:6699")
+    client.call("/%s/busy.json" % web.config.token,
+                method = 'POST')
 
 
 def send_ping():
-    client = HttpClient("http://127.0.0.1:6699")
+    web.config.last_status = int(time.time())
     print("%s pinging" % web.config.token)
+
+    client = HttpClient("http://127.0.0.1:6699")
     client.call("/%s/ping.json" % web.config.token,
                 method = "POST")
-    web.config.last_status = int(time.time())
-
-
-STATUS_AVAILABLE, STATUS_BUSY = range(2)
 
 
 def ttl_expired():
@@ -149,33 +131,70 @@ class StatusThread(threading.Thread):
             time.sleep(1)
 
 
+def get_item():
+    with cv:
+        while True:
+            try:
+                item = requestq.get_nowait()
+                if item == None:
+                    # Our 'busy' marker. Guess we are not as busy as we
+                    # believe right now.
+                    continue
+                # Oh, it succeeded. Let's act 'busy'
+                requestq.put(None)
+                break
+            except Empty:
+                cv.wait()
+    return item
+
+
+def put_item(item):
+    """Returns False if the ExcutionThread is working"""
+    with cv:
+        try:
+            requestq.put_nowait(item)
+            cv.notify()
+            return True
+        except Full:
+            return False
+
+
+def replace_item(item):
+    # Assumes that the queue already has an item in it.
+    with cv:
+        requestq.get()
+        requestq.put(item)
+        cv.notify()
+
+
 class ExecutionThread(threading.Thread):
-    def __init__(self, queue):
+    def __init__(self):
         threading.Thread.__init__(self)
         self.kill_received = False
-        self.queue = queue
 
     def run(self):
-        send_status(STATUS_AVAILABLE)
+        dispatch_id, job_result = None, None
         while not self.kill_received:
-            job = self.queue.get()
-            if not job:
+            item = send_available(dispatch_id, job_result)
+            if not item:
+                item = get_item()
+            if not item:
                 continue
-            assert(not available.is_set())
-            send_status(STATUS_BUSY)
+            dispatch_id = item['id']
+            n = LocalNode()
+            job = n.run_remote(None, item['data'], web.config._path)
+            send_busy()
             job.join()
+            job_result = job.get()
             if job.return_code != 0:
-                print("Job CRASHED")
                 # We never do that. It must have crashed - clear the session
+                print("Job CRASHED")
                 session = Session.load(job.session_id)
                 session.return_code = job.return_code
                 session.state = "finished"
                 session.save()
             else:
                 print("Job terminated")
-            with available_lock:
-                available.set()
-            send_status(STATUS_AVAILABLE)
 
 
 if __name__ == "__main__":
@@ -212,10 +231,6 @@ if __name__ == "__main__":
     else:
         web.config.node_id = config["node_id"]
 
-    if not web.config.key:
-        print >> sys.stderr, "Please specify a configuration file or a key"
-        sys.exit(1)
-
     web.config.port = int(opts.port)
 
     print("Registering at AHQ and getting token")
@@ -223,18 +238,16 @@ if __name__ == "__main__":
     ret = client.call("/A%s/register.json" % web.config.node_id,
                       input = json.dumps({"port": web.config.port,
                                           "labels": ["macos"]}))
-    print("Got token %s, job_no %s" % (ret["token"], ret["job_no"]))
+    print("Got token %s" % ret["token"])
     web.config.token = ret["token"]
-    web.config.job_no = ret["job_no"]
 
     print("%s: Running from %s, listening to %d" % (web.config.node_id, web.config._path, web.config.port))
 
-    available.set()
     status = StatusThread()
-    execthread = ExecutionThread(jobqueue)
+    execthread = ExecutionThread()
     status.start()
     execthread.start()
     web.httpserver.runsimple(app.wsgifunc(), ("0.0.0.0", int(opts.port)))
     status.kill_received = True
     execthread.kill_received = True
-    jobqueue.put(None)
+    put_item(None)

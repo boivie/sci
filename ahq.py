@@ -11,35 +11,39 @@
 from optparse import OptionParser
 import web, redis, json, time, logging
 from sci.utils import random_sha1
+from sci.http_client import HttpClient
 
 
 KEY_LABEL = 'ahq:label:%s'
-KEY_AGENT = 'agent:info:%s'     # -> {state:, job_no:, ts_allocated:}
+KEY_AGENT = 'agent:info:%s'
 KEY_TOKEN = 'ahq:token:%s'
 KEY_ALLOCATION = "ahq:alloc:%s"
-KEY_TICKET_INFO = 'ahq:ticket:info:%s'
-KEY_TICKET_QUEUE = 'ahq:ticket:q:%s'
-KEY_QUEUE = 'ahq:ticketq'
+KEY_DISPATCH_INFO = 'ahq:dispatch:info:%s'
+KEY_QUEUE = 'ahq:dispatchq'
 
 KEY_ALL = 'agents:all'
 KEY_AVAILABLE = 'agents:avail'
 
 ALLOCATION_EXPIRY_TTL = 1 * 60
 SEEN_EXPIRY_TTL = 2 * 60
-KEY_TICKET_TTL = 1 * 60
 
 STATE_INACTIVE = "inactive"
 STATE_AVAIL = "available"
 STATE_PENDING = "pending"
 STATE_BUSY = "busy"
 
+DISPATCH_STATE_QUEUED = 'queued'
+DISPATCH_STATE_RUNNING = 'running'
+DISPATCH_STATE_DONE = 'done'
+
 urls = (
-    '/A([0-9a-f]{40})/register.json',                  'Register',
-    '/N([0-9a-f]{40})/checkin/([a-z]+)/([0-9]+).json', 'CheckIn',
-    '/N([0-9a-f]{40})/ping.json',                      'Ping',
-    '/allocate.json',         'AllocateLabels',
-    '/tickets.json',          'AllocateTickets',
-    '/info.json',             'GetInfo'
+    '/A([0-9a-f]{40})/register.json',  'Register',
+    '/N([0-9a-f]{40})/available.json', 'CheckInAvailable',
+    '/N([0-9a-f]{40})/busy.json',      'CheckInBusy',
+    '/N([0-9a-f]{40})/ping.json',      'Ping',
+    '/J([0-9a-f]{40})/dispatch.json',  'DispatchBuild',
+    '/D([0-9a-f]{40})/result.json',    'GetDispatchedResult',
+    '/info.json',                      'GetInfo'
 )
 
 app = web.application(urls, globals())
@@ -78,8 +82,6 @@ class Register:
         info = {"ip": web.ctx.ip,
                 "port": input["port"],
                 "state": STATE_INACTIVE,
-                "job_no": old_info.get("job_no", 0),
-                "ts_alloc": 0,
                 "token_id": token_id,
                 "seen": get_ts(),
                 "labels": input["labels"]}
@@ -91,48 +93,93 @@ class Register:
             db.sadd(KEY_LABEL % label, agent_id)
 
         db.set(KEY_TOKEN % token_id, agent_id)
-        return jsonify(token = 'N' + token_id,
-                       job_no = info["job_no"])
+        return jsonify(token = 'N' + token_id)
 
 
-def make_avail_or_give_to_queue(pipe, agent_id, agent_info):
+def get_did_or_make_avail(pipe, agent_id, agent_info):
     """Starts multi, doesn't exec"""
     pipe.watch(KEY_QUEUE)
     queue = pipe.zrange(KEY_QUEUE, 0, -1)
-    expired_tickets = []
-    for ticket_id in queue:
-        ticket_info = pipe.get(KEY_TICKET_INFO % ticket_id)
-        if not ticket_info:
-            # Expired. Delete it.
-            expired_tickets.append(ticket_id)
-            continue
-        ticket_info = json.loads(ticket_info)
+    for dispatch_id in queue:
+        dispatch_info = json.loads(pipe.get(KEY_DISPATCH_INFO % dispatch_id))
         # Do we fulfill its requirements?
-        if set(ticket_info["labels"]).issubset(set(agent_info["labels"])):
-            # Yup. Put it as 'pending' in the ticket's queue
-            job_no = agent_info["job_no"] + 1
-            agent_info["job_no"] = job_no
-            agent_info["state"] = STATE_PENDING
-            agent_info["ts_alloc"] = get_ts()
-            pipe.multi()
-            expired_tickets.append(ticket_id)
-            for t in expired_tickets:
-                pipe.zrem(KEY_QUEUE, t)
-            pipe.rpush(KEY_TICKET_QUEUE % ticket_id, agent_id)
-            return ticket_id
-
-    # Nope. No tickets -> put it as available.
+        if dispatch_info['state'] != DISPATCH_STATE_QUEUED:
+            continue
+        if not set(dispatch_info["labels"]).issubset(set(agent_info["labels"])):
+            continue
+        # Yup. Use it.
+        agent_info["state"] = STATE_PENDING
+        pipe.multi()
+        pipe.zrem(KEY_QUEUE, dispatch_id)
+        return dispatch_info
+    # Nope. None matching -> put it as available.
     pipe.multi()
-    if expired_tickets:
-        pipe.zrem(KEY_QUEUE, expired_tickets)
     agent_info["state"] = STATE_AVAIL
     pipe.sadd(KEY_AVAILABLE, agent_id)
     return None
 
 
-class CheckIn:
-    def POST(self, token_id, status, job_no):
-        job_no = int(job_no)
+def handle_last_results(db, agent_id, data):
+    data = json.loads(data)
+    dispatch_id = data.get('id')
+    result = data.get('result')
+    if not dispatch_id:
+        return
+    key = KEY_DISPATCH_INFO % dispatch_id
+    while True:
+        try:
+            with db.pipeline() as pipe:
+                pipe.watch(key)
+                info = json.loads(pipe.get(key))
+                info['state'] = DISPATCH_STATE_DONE
+                info['result'] = result
+                pipe.multi()
+                pipe.set(key, json.dumps(info))
+                pipe.execute()
+                break
+        except redis.WatchError:
+            continue
+
+
+class CheckInAvailable:
+    def POST(self, token_id):
+        now = get_ts()
+        db = conn()
+
+        agent_id = db.get(KEY_TOKEN % token_id)
+        if agent_id is None:
+            abort(404, "Invalid token")
+
+        # Do we have results from a previous dispatch?
+        handle_last_results(db, agent_id, web.data())
+
+        while True:
+            try:
+                with db.pipeline() as pipe:
+                    dinfo = None
+                    pipe.watch(KEY_AGENT % agent_id)
+                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
+
+                    dinfo = get_did_or_make_avail(pipe, agent_id, info)
+                    info['seen'] = now
+                    info['state'] = STATE_AVAIL
+                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+                    pipe.execute()
+                    # We succeeded!
+                    if dinfo:
+                        logging.debug("A%s checked in -> D%s" % (agent_id,
+                                                                 dinfo['id']))
+                        return jsonify(do = dinfo)
+                    else:
+                        logging.debug("A%s checked in" % agent_id)
+                        return jsonify()
+                    break
+            except redis.WatchError:
+                continue
+
+
+class CheckInBusy:
+    def POST(self, token_id):
         now = get_ts()
         db = conn()
 
@@ -143,50 +190,17 @@ class CheckIn:
         while True:
             try:
                 with db.pipeline() as pipe:
-                    ticket = None
                     pipe.watch(KEY_AGENT % agent_id)
                     info = json.loads(pipe.get(KEY_AGENT % agent_id))
-
+                    pipe.multi()
                     info["seen"] = now
-                    if info["state"] == STATE_INACTIVE and status == "available":
-                        ticket = make_avail_or_give_to_queue(pipe, agent_id, info)
-                    elif info["state"] == STATE_AVAIL and status == "available":
-                        pipe.multi()
-                        pass
-                    elif info["state"] == STATE_PENDING and status == "busy" and \
-                            info["job_no"] == job_no:
-                        pipe.multi()
-                        info["state"] = STATE_BUSY
-                    elif info["state"] == STATE_PENDING and \
-                            status == "available" and \
-                            info["ts_alloc"] + ALLOCATION_EXPIRY_TTL < now:
-                        logging.info("A%s expired allocation" % agent_id)
-                        ticket = make_avail_or_give_to_queue(pipe, agent_id, info)
-                    elif info["state"] == STATE_BUSY and status == "available" and \
-                            info["job_no"] == job_no:
-                        ticket = make_avail_or_give_to_queue(pipe, agent_id, info)
-                    elif info["state"] == STATE_BUSY and status == "busy":
-                        pipe.multi()
-                        pass
-                    else:
-                        pipe.multi()
-                        logging.error("info = %s, status = %s, job_no = %s" % \
-                                          (info, status, job_no))
-                    # We always update this - to refresh 'seen'
+                    info["state"] = STATE_BUSY
                     pipe.set(KEY_AGENT % agent_id, json.dumps(info))
                     pipe.execute()
-                    # We succeeded!
-                    if ticket:
-                        logging.debug("A%s checked in -> T%s" % (agent_id, ticket))
-                    else:
-                        logging.debug("A%s checked in" % agent_id)
                     break
             except redis.WatchError:
                 continue
-
-        return jsonify(status = "ok",
-                       state = info["state"],
-                       job_no = info["job_no"])
+        return jsonify()
 
 
 class Ping:
@@ -213,14 +227,15 @@ class Ping:
         return jsonify(status = "ok")
 
 
-def allocate(pipe, agent_id):
+def allocate(pipe, agent_id, dispatch_id):
     """Starts multi, doesn't exec"""
+    pipe.watch(KEY_AGENT % agent_id)
     info = json.loads(pipe.get(KEY_AGENT % agent_id))
-    pipe.multi()
-    if info["state"] != "available":
-        return None
 
+    pipe.multi()
     pipe.srem(KEY_AVAILABLE, agent_id)
+    if info["state"] != STATE_AVAIL:
+        return None
 
     # verify the 'seen' so that it's not too old
     if info["seen"] + SEEN_EXPIRY_TTL < int(time.time()):
@@ -229,36 +244,41 @@ def allocate(pipe, agent_id):
         pipe.set(KEY_AGENT % agent_id, json.dumps(info))
         return None
 
-    job_no = info["job_no"] + 1
-    info["job_no"] = job_no
     info["state"] = STATE_PENDING
-    info["ts_alloc"] = get_ts()
+    info['dispatch_id'] = dispatch_id
     pipe.set(KEY_AGENT % agent_id, json.dumps(info))
     return info
 
 
-def get_ticket(pipe, labels):
+def dispatch_later(pipe, dispatch_id, labels, job, dispatch_data):
     """Starts multi, doesn't exec"""
-    ticket_id = random_sha1()
-
     pipe.multi()
-    pipe.setex(KEY_TICKET_INFO % ticket_id, KEY_TICKET_TTL,
-               json.dumps({"labels": labels}))
+    pipe.set(KEY_DISPATCH_INFO % dispatch_id,
+             json.dumps({'id': dispatch_id,
+                         'job_id': job,
+                         'labels': labels,
+                         'data': dispatch_data,
+                         'state': DISPATCH_STATE_QUEUED}))
     ts = float(time.time() * 1000)
-    pipe.zadd(KEY_QUEUE, ts, ticket_id)
-    return ticket_id
+    pipe.zadd(KEY_QUEUE, ts, dispatch_id)
+    return dispatch_id
 
 
-def format_result(info):
-    url = "http://%s:%s" % (info["ip"], info["port"])
-    return dict(status = "ok", agent = info['id'],
-                ip = info["ip"], port = info["port"],
-                job_token = "%d" % info["job_no"],
-                url = url)
+def do_dispatch(db, dispatch_id, agent_id, agent_url, job, dispatch_data):
+    client = HttpClient(agent_url)
+    result = client.call('/D%s/dispatch.json' % dispatch_id,
+                         input = dispatch_data)
+    # TODO: Possible race condition: The client may finish here,
+    # and call 'checkin'.
+    db.set(KEY_DISPATCH_INFO % dispatch_id,
+           json.dumps({'data': dispatch_data,
+                       'agent_id': agent_id,
+                       'state': DISPATCH_STATE_RUNNING}))
 
 
-def allocate_by_labels(labels):
+def dispatch(labels, job, dispatch_data):
     labels.remove("any")
+    dispatch_id = random_sha1()
 
     db = conn()
     alloc_key = KEY_ALLOCATION % random_sha1()
@@ -273,66 +293,45 @@ def allocate_by_labels(labels):
                 pipe.sinterstore(alloc_key, lkeys)
                 agent_id = pipe.spop(alloc_key)
                 if not agent_id:
-                    ticket_id = get_ticket(pipe, labels)
+                    dispatch_later(pipe, dispatch_id,
+                                   labels, job,
+                                   dispatch_data)
                     pipe.delete(alloc_key)
                     pipe.execute()
-                    return None, ticket_id
+                else:
+                    info = allocate(pipe, agent_id, dispatch_id)
+                    pipe.delete(alloc_key)
+                    pipe.execute()
 
-                info = allocate(pipe, agent_id)
-                if not info:
-                    continue
-                pipe.delete(alloc_key)
-                pipe.execute()
-                info['id'] = agent_id
-                return info, None
+                    if not info:
+                        continue
+                    url = "http://%s:%s" % (info["ip"], info["port"])
+                    do_dispatch(db, dispatch_id, agent_id, url, job,
+                                dispatch_data)
+                return 'D' + dispatch_id
             except redis.WatchError:
                 continue
 
 
-class AllocateLabels:
-    def POST(self):
+class DispatchBuild:
+    def POST(self, job):
         input = json.loads(web.data())
-        labels = input["labels"]
 
-        agent_info, ticket = allocate_by_labels(labels)
-
-        if agent_info:
-            logging.debug("Allocated A%s" % agent_info['id'])
-            return json.dumps(format_result(agent_info))
-        else:
-            logging.debug("Handed out T%s" % ticket)
-            return jsonify(status = 'queued', ticket = ticket)
+        dispatch_id = dispatch(input['labels'], job, input['data'])
+        return jsonify(id = dispatch_id)
 
 
-class AllocateTickets:
-    def POST(self):
-        input = json.loads(web.data())
-        tickets = input["tickets"]
-        ticket_keys = [KEY_TICKET_QUEUE % t for t in tickets]
+class GetDispatchedResult:
+    def GET(self, dispatch_id):
         db = conn()
-        count = 0
         while True:
-            for t in tickets:
-                db.expire(KEY_TICKET_INFO % t, KEY_TICKET_TTL)
-            result = db.blpop(ticket_keys, 1)
-            if not result:
-                count += 1
-                if count == 10:
-                    yield json.dumps({"status": "failed"})
-                    break
-                yield "\n"
-                continue
-            ticket_key, agent_id = result
-            ticket_id = ticket_key[-40:]
-            # It is aready prepared for us. Return it.
-            info = json.loads(db.get(KEY_AGENT % agent_id))
-            info['id'] = agent_id
-            res = format_result(info)
-            res["ticket"] = ticket_id
-            tickets.remove(ticket_id)
-            logging.debug("Traded A%s from T%s" % (agent_id, ticket_id))
-            yield json.dumps(res)
-            break
+            info = db.get(KEY_DISPATCH_INFO % dispatch_id)
+            if not info:
+                abort(404, "Dispatch ID not found")
+            info = json.loads(info)
+            if info['state'] == DISPATCH_STATE_DONE:
+                return jsonify(result = info['result'])
+            time.sleep(0.5)
 
 
 class GetInfo:
@@ -340,11 +339,11 @@ class GetInfo:
         # Get queue
         db = conn()
         queue = []
-        for ticket_id in db.zrange(KEY_QUEUE, 0, -1):
-            info = db.get(KEY_TICKET_INFO % ticket_id)
+        for did in db.zrange(KEY_QUEUE, 0, -1):
+            info = db.get(KEY_DISPATCH_INFO % did)
             if info:
                 info = json.loads(info)
-                queue.append({"ticket": ticket_id,
+                queue.append({"id": did,
                               "labels": info["labels"]})
         all = []
         for agent_id in db.smembers(KEY_ALL):
