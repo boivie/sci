@@ -88,7 +88,7 @@ class LocalDetachedJob(DetachedJob):
         self.return_code = None
 
     def _join(self):
-        self.proc.wait()
+        self.return_code = self.proc.wait()
         s = Session.load(self.session_id)
         self._finished(s.return_value)
 

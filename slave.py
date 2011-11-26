@@ -15,17 +15,20 @@ from sci.node import LocalNode
 from sci.http_client import HttpClient
 from sci.utils import random_sha1
 import ConfigParser
+from Queue import Queue
 
 urls = (
     '/info/([0-9a-f]+).json', 'GetSessionInfo',
     '/start/(.+).json',       'StartJob',
-    '/log/([0-9a-f]+).txt',   'GetLog',
-    '/status.json',           'GetStatus')
+    '/log/([0-9a-f]+).txt',   'GetLog')
 
 EXPIRY_TTL = 60
 
 web.config.debug = False
 app = web.application(urls, globals())
+jobqueue = Queue()
+available = threading.Event()
+available_lock = threading.RLock()
 
 
 class Settings(object):
@@ -74,14 +77,8 @@ class GetSessionInfo:
 
         args = web.input(block = '0')
         if args["block"] == '1':
-            i = 0
-            while True:
-                if settings.job is None:
-                    break
-                i += 1
-                if i % 10 == 0:
-                    yield "\n"
-                time.sleep(0.1)
+            while not available.wait(10):
+                yield "\n"
 
         session = Session.load(sid)
         yield json.dumps({"state": session.state,
@@ -90,13 +87,16 @@ class GetSessionInfo:
 
 class StartJob:
     def POST(self, job_token):
-        if settings.job:
-            abort(412, "already running")
+        with available_lock:
+            if not available.is_set():
+                abort(412, "Already running")
+            available.clear()
         n = LocalNode()
         web.config.job_no = int(job_token)
-        settings.job = n.run_remote(None, web.data(), web.config._path)
+        job = n.run_remote(None, web.data(), web.config._path)
+        jobqueue.put(job)
         return jsonify(status = "started",
-                       id = settings.job.session_id)
+                       id = job.session_id)
 
 
 class GetLog:
@@ -114,14 +114,6 @@ class GetLog:
                 yield data
 
 
-class GetStatus:
-    def GET(self):
-        if settings.job:
-            return jsonify(status = "running")
-        else:
-            return jsonify(status = "idle")
-
-
 def send_status(status):
     client = HttpClient("http://127.0.0.1:6699")
 
@@ -133,25 +125,6 @@ def send_status(status):
                 method = "POST")
 
 STATUS_AVAILABLE, STATUS_BUSY = range(2)
-
-
-def get_status():
-    if settings.job:
-        if settings.job.poll():
-            if settings.job.return_code != 0:
-                print("Job CRASHED")
-                # We never do that. It must have crashed - clear the session
-                session = Session.load(settings.job.session_id)
-                session.return_code = settings.job.return_code
-                session.state = "finished"
-                session.save()
-            else:
-                print("Job terminated")
-            settings.job = None
-
-    if settings.job:
-        return STATUS_BUSY
-    return STATUS_AVAILABLE
 
 
 def ttl_expired():
@@ -169,13 +142,38 @@ class StatusThread(threading.Thread):
         time.sleep(3)
         reported_status = STATUS_BUSY
         while not self.kill_received:
-            current_status = get_status()
+            current_status = STATUS_AVAILABLE if available.is_set() else STATUS_BUSY
             if current_status != reported_status or ttl_expired():
                 send_status(current_status)
                 reported_status = current_status
                 settings.last_status = int(time.time())
             time.sleep(1)
 
+
+class ExecutionThread(threading.Thread):
+    def __init__(self, queue):
+        threading.Thread.__init__(self)
+        self.kill_received = False
+        self.queue = queue
+
+    def run(self):
+        while not self.kill_received:
+            job = self.queue.get()
+            assert(not available.is_set())
+            if not job:
+                continue
+            job.join()
+            if job.return_code != 0:
+                print("Job CRASHED")
+                # We never do that. It must have crashed - clear the session
+                session = Session.load(job.session_id)
+                session.return_code = job.return_code
+                session.state = "finished"
+                session.save()
+            else:
+                print("Job terminated")
+            with available_lock:
+                available.set()
 
 if __name__ == "__main__":
     parser = OptionParser()
@@ -228,7 +226,12 @@ if __name__ == "__main__":
 
     print("%s: Running from %s, listening to %d" % (web.config.node_id, web.config._path, web.config.port))
 
-    t = StatusThread()
-    t.start()
+    available.set()
+    status = StatusThread()
+    execthread = ExecutionThread(jobqueue)
+    status.start()
+    execthread.start()
     web.httpserver.runsimple(app.wsgifunc(), ("0.0.0.0", int(opts.port)))
-    t.kill_received = True
+    status.kill_received = True
+    execthread.kill_received = True
+    jobqueue.put(None)
