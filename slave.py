@@ -31,14 +31,6 @@ available = threading.Event()
 available_lock = threading.RLock()
 
 
-class Settings(object):
-    def __init__(self):
-        self.job = None
-        self.last_status = 0
-
-settings = Settings()
-
-
 def get_config(path):
     c = ConfigParser.ConfigParser()
     c.read(os.path.join(path, "config.ini"))
@@ -118,17 +110,20 @@ def send_status(status):
     client = HttpClient("http://127.0.0.1:6699")
 
     status_str = {STATUS_AVAILABLE: "available",
-                  STATUS_BUSY: "busy"}[status]
+                  STATUS_BUSY: "busy",
+                  STATUS_PING: 'ping'}[status]
     print("%s checking in (%s)" % (web.config.token, status_str))
     client.call("/checkin/%s/%s/%d.json" % (web.config.token, status_str,
                                             web.config.job_no),
                 method = "POST")
+    web.config.last_status = int(time.time())
 
-STATUS_AVAILABLE, STATUS_BUSY = range(2)
+
+STATUS_AVAILABLE, STATUS_BUSY, STATUS_PING = range(3)
 
 
 def ttl_expired():
-    if settings.last_status + EXPIRY_TTL < int(time.time()):
+    if web.config.last_status + EXPIRY_TTL < int(time.time()):
         return True
 
 
@@ -138,15 +133,12 @@ class StatusThread(threading.Thread):
         self.kill_received = False
 
     def run(self):
-        # Wait a few seconds before staring - to let things settle
+        # Wait a few seconds before starting - there will be an initial
+        # status sent from ExecutionThread.
         time.sleep(3)
-        reported_status = STATUS_BUSY
         while not self.kill_received:
-            current_status = STATUS_AVAILABLE if available.is_set() else STATUS_BUSY
-            if current_status != reported_status or ttl_expired():
-                send_status(current_status)
-                reported_status = current_status
-                settings.last_status = int(time.time())
+            if ttl_expired():
+                send_status(STATUS_PING)
             time.sleep(1)
 
 
@@ -157,11 +149,13 @@ class ExecutionThread(threading.Thread):
         self.queue = queue
 
     def run(self):
+        send_status(STATUS_AVAILABLE)
         while not self.kill_received:
             job = self.queue.get()
-            assert(not available.is_set())
             if not job:
                 continue
+            assert(not available.is_set())
+            send_status(STATUS_BUSY)
             job.join()
             if job.return_code != 0:
                 print("Job CRASHED")
@@ -174,6 +168,8 @@ class ExecutionThread(threading.Thread):
                 print("Job terminated")
             with available_lock:
                 available.set()
+            send_status(STATUS_AVAILABLE)
+
 
 if __name__ == "__main__":
     parser = OptionParser()

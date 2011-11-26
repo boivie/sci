@@ -147,7 +147,9 @@ class CheckIn:
                     info = json.loads(pipe.get(KEY_AGENT % agent_id))
 
                     info["seen"] = now
-                    if info["state"] == STATE_INACTIVE and status == "available":
+                    if status == 'ping':
+                        pipe.multi()
+                    elif info["state"] == STATE_INACTIVE and status == "available":
                         ticket = make_avail_or_give_to_queue(pipe, agent_id, info)
                     elif info["state"] == STATE_AVAIL and status == "available":
                         pipe.multi()
