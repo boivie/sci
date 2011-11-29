@@ -9,9 +9,8 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import web, json, sys, os, threading
+import web, json, os, threading, subprocess
 from sci.session import Session, time
-from sci.node import LocalNode
 from sci.http_client import HttpClient
 from sci.utils import random_sha1
 import ConfigParser
@@ -173,28 +172,38 @@ class ExecutionThread(threading.Thread):
         self.kill_received = False
 
     def run(self):
-        dispatch_id, job_result = None, None
+        item = send_available()
         while not self.kill_received:
-            item = send_available(dispatch_id, job_result)
             if not item:
                 item = get_item()
-            if not item:
-                continue
-            dispatch_id = item['id']
-            n = LocalNode()
-            job = n.run_remote(None, item['data'], web.config._path)
+
+            session = Session.create()
+            run_job = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                   "run_job.py")
+            args = [run_job, session.id]
+            stdout = open(session.logfile, "w")
+            session.state = "running"
+            session.save()
+            proc = subprocess.Popen(args, stdin = subprocess.PIPE,
+                                    stdout = stdout, stderr = subprocess.STDOUT,
+                                    cwd = web.config._path)
+            proc.stdin.write(item['data'])
+            proc.stdin.close()
             send_busy()
-            job.join()
-            job_result = job.get()
-            if job.return_code != 0:
+            return_code = proc.wait()
+            session = Session.load(session.id)
+            if return_code != 0:
                 # We never do that. It must have crashed - clear the session
                 print("Job CRASHED")
-                session = Session.load(job.session_id)
-                session.return_code = job.return_code
+                session.return_code = return_code
                 session.state = "finished"
                 session.save()
             else:
                 print("Job terminated")
+
+            dispatch_id = item['id']
+            job_result = session.return_value
+            item = send_available(dispatch_id, job_result)
 
 
 if __name__ == "__main__":

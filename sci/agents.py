@@ -9,9 +9,8 @@
 """
 import json
 from .http_client import HttpClient
-from .node import Node
 
-STATE_NONE, STATE_QUEUED, STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(5)
+STATE_NONE, STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(4)
 
 
 class Agent(object):
@@ -22,7 +21,12 @@ class Agent(object):
         self.state = STATE_NONE
 
     def run(self, ahq_url, job):
-        data = Node._serialize(job, self.step.fun, self.args, self.kwargs)
+        data = {"build_id": job.build_id,
+                "job_server": job.jobserver,
+                "funname": self.step.fun.__name__,
+                "args": self.args,
+                "kwargs": self.kwargs,
+                "env": job.env.serialize()}
         data = json.dumps(dict(labels = ['any'],
                                data = json.dumps(data)))
         res = HttpClient(ahq_url).call('/J%s/dispatch.json' % job.build_id,
