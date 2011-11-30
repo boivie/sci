@@ -220,6 +220,7 @@ class GetPutJob:
 
 class CreateBuild:
     def POST(self, name_or_sha1):
+        input = json.loads(web.data())
         # Verify that the job exists
         config = get_repo(GIT_CONFIG)
         builds = get_repo(GIT_BUILDS)
@@ -245,7 +246,8 @@ class CreateBuild:
                          state = STATE_STARTED,
                          created = email.utils.formatdate(localtime = True),
                          job_ref = job_ref,
-                         recipe_ref = recipe_ref)
+                         recipe_ref = recipe_ref,
+                         parameters = input.get("parameters", {}))
             fname = '%d.json' % number
             contents = json.dumps(build)
             commit = create_commit(builds,

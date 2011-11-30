@@ -27,11 +27,20 @@ class JobException(Exception):
     pass
 
 
-class Step(object):
-    def __init__(self, job, name, fun, **kwargs):
-        self.job = job
+class JobFunction(object):
+    def __init__(self, name, fun, **kwargs):
         self.name = name
         self.fun = fun
+        self.is_main = False
+
+    def __call__(self, *args, **kwargs):
+        return self.fun(*args, **kwargs)
+
+
+class Step(JobFunction):
+    def __init__(self, job, name, fun, **kwargs):
+        JobFunction.__init__(self, name, fun, **kwargs)
+        self.job = job
 
     def __call__(self, *args, **kwargs):
         self.job._current_step = self
@@ -40,6 +49,12 @@ class Step(object):
         # Wait for any unfinished detached jobs
         self.job.agents.run()
         return ret
+
+
+class MainFn(JobFunction):
+    def __init__(self, name, fun, **kwargs):
+        JobFunction.__init__(self, name, fun, **kwargs)
+        self.is_main = True
 
 
 class Job(object):
@@ -111,14 +126,16 @@ class Job(object):
 
     def step(self, name, **kwargs):
         def decorator(f):
-            self.steps.append((name, f))
-            return Step(self, name, f, **kwargs)
+            s = Step(self, name, f, **kwargs)
+            self.steps.append(s)
+            return s
         return decorator
 
     def main(self, **kwargs):
         def decorator(f):
-            self._mainfn = f
-            return f
+            fn = MainFn('main', f)
+            self._mainfn = fn
+            return fn
         return decorator
 
     def _timestr(self):
@@ -134,7 +151,7 @@ class Job(object):
         print("%s%s[ %s ]%s" % (prefix, dash * dash_left,
                                  text, dash * dash_right))
 
-    def _parse_arguments(self, env):
+    def _parse_arguments(self, params):
         # Parse parameters
         parser = OptionParser()
         parser.add_option("--list-parameters", dest = "list_parameters",
@@ -149,24 +166,33 @@ class Job(object):
         for arg in args:
             if "=" in arg:
                 k, v = arg.split("=", 2)
-                env[k] = v
+                params[k] = v
 
     def _start(self, session, entrypoint, params, args,
-               kwargs, env, build_id = None, build_name = None):
+               kwargs, env, build_id, build_name):
+        # Must set time first. It's used when printing
+        self.start_time = time.time()
         self.session = session
-        if build_id:
-            self.build_id = build_id
+        self.build_id = build_id
+        if entrypoint.is_main:
             self.env.define("SCI_BUILD_ID", "The unique build identifier",
                             read_only = True, source = "initial environment",
                             value = self.build_id)
             self.env.define("SCI_BUILD_NAME", "The unique build name",
                             read_only = True, source = "initial environment",
                             value = build_name)
-        else:
-            self.build_id = env["SCI_BUILD_ID"]
+            # Set parameters
+            for k in params:
+                self.env[k] = params[k]
 
-        # Must set time first. It's used when printing
-        self.start_time = time.time()
+            try:
+                self._params.evaluate()
+            except ParameterError as e:
+                print("error: %s " % e)
+                print("")
+                print("Run with --list-parameters to list them.")
+                sys.exit(2)
+
         self._print_banner("Preparing Job", dash = "=")
 
         # Read global config file
@@ -178,24 +204,11 @@ class Job(object):
         if env:
             self.env.merge(env)
 
-        # Set parameters
-        for k in params:
-            self.env[k] = params[k]
-
-        if build_id:
-            try:
-                self._params.evaluate()
-            except ParameterError as e:
-                print("error: %s " % e)
-                print("")
-                print("Run with --list-parameters to list them.")
-                sys.exit(2)
-
         print("Build-Id: %s" % self.build_id)
         self.env.print_values()
 
         self._print_banner("Starting Job", dash = "=")
-        ret = entrypoint(*args, **kwargs)
+        ret = entrypoint.fun(*args, **kwargs)
         self._print_banner("Job Finished", dash = "=")
         return ret
 
@@ -206,6 +219,10 @@ class Job(object):
            invoking the job's script from the command line."""
         logging.basicConfig(level=logging.DEBUG)
         client = HttpClient(self.jobserver)
+
+        # The build will contain all information necessary to build it,
+        # also including parameters. Gather all those
+        self._parse_arguments(params)
 
         # Save the recipe at the job server
         contents = open(sys.modules[self._import_name].__file__, "rb").read()
@@ -221,16 +238,11 @@ class Job(object):
 
         # Create a build
         build_info = client.call('/build/create/%s.json' % job_ref,
-                                 method = 'POST')
+                                 input = json.dumps({'parameters': params}))
         session = Session.create()
 
-        env = Environment()
-        self._parse_arguments(env)
-
         return Bootstrap.run(session, build_id = build_info['id'],
-                             jobserver = self.jobserver,
-                             params = params,
-                             env = env.serialize())
+                             jobserver = self.jobserver)
 
     def run(self, cmd, **kwargs):
         """Runs a command in a shell

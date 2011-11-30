@@ -30,8 +30,8 @@ class Bootstrap(object):
         if not name:
             return job._mainfn
         for step in job.steps:
-            if step[1].__name__ == name:
-                return step[1]
+            if step.fun.__name__ == name:
+                return step
         raise Exception("Couldn't locate entry point")
 
     @classmethod
@@ -42,10 +42,11 @@ class Bootstrap(object):
 
     @classmethod
     def run(cls, session, build_id, jobserver, entrypoint_name = "",
-            params = {}, args = [], kwargs = {}, env = None):
+            args = [], kwargs = {}, env = None):
         # Fetch build information
         build_info = HttpClient(jobserver).call('/build/%s.json' % build_id)
         build_info = build_info['build']
+        params = build_info["parameters"]
 
         # Fetch the recipe
         recipe = os.path.join(session.path, 'build.py')
