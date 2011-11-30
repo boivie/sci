@@ -9,7 +9,7 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import web, json, os, re
+import web, json, os, re, yaml
 import email.utils
 from dulwich.repo import Repo
 from dulwich.objects import Blob, Tree, Commit, parse_timezone
@@ -43,6 +43,7 @@ class CommitException(Exception):
 
 urls = (
     '/recipe/(.+).json',           'GetPutRecipe',
+    '/metadata/(.+).json',         'GetPutMetadata',
     '/config/(.+).json',           'PutConfig',
     '/config/(.+).txt',            'GetConfig',
     '/job/(.+).json',              'GetPutJob',
@@ -135,6 +136,32 @@ class GetPutRecipe:
         tree = repo.get_object(commit.tree)
         mode, sha = tree['build.py']
         return repo.get_object(sha).data
+
+
+def get_recipe_metadata(contents):
+    header = []
+    for line in contents.splitlines():
+        if line.startswith("#!/"):
+            continue
+        if not line or line[0] != '#':
+            break
+
+        header.append(line[1:])
+
+    header = '\n'.join(header)
+    return yaml.load(header)
+
+
+class GetPutMetadata:
+    def GET(self, name):
+        repo = get_repo(GIT_CONFIG)
+        ref = get_recipe_ref(repo, name)
+        commit = repo.get_object(ref)
+        tree = repo.get_object(commit.tree)
+        mode, sha = tree['build.py']
+        data = repo.get_object(sha).data
+        metadata = get_recipe_metadata(data)
+        return json.dumps(metadata)
 
 
 def get_recipe_ref(repo, name):

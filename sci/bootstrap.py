@@ -8,7 +8,9 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import os, shutil, imp
+import os, shutil, imp, sys, socket
+from datetime import datetime
+from .config import Config
 from .session import Session
 from .environment import Environment
 from .http_client import HttpClient, HttpRequest
@@ -41,22 +43,88 @@ class Bootstrap(object):
                 shutil.copyfileobj(src, dest)
 
     @classmethod
+    def handle_parameters(cls, env, parameters, metadata):
+        for param in parameters:
+            if not param in metadata['Parameters']:
+                print("Invalid parameter: %s" % param)
+                sys.exit(2)
+            env[param] = parameters[param]
+
+        # Verify that all 'required' parameters are set
+        for name in metadata['Parameters']:
+            param = metadata['Parameters'][name]
+            if param.get('required', False):
+                if not name in env:
+                    print("Required parameter %s not set!" % name)
+                    sys.exit(2)
+
+        # Set default parameters that have a static value
+        # (parameters that have a function as default value will have them
+        #  called just before starting the job)
+        for name in metadata['Parameters']:
+            param = metadata['Parameters'][name]
+            if 'default' in param and not name in env:
+                env[name] = param['default']
+
+    @classmethod
+    def create_env(cls, metadata, parameters, config_fname,
+                   build_id, build_name):
+        env = Environment()
+
+        # Set provided parameters
+        Bootstrap.handle_parameters(env, parameters, metadata)
+
+        config = Config.from_pyfile(config_fname)
+        if config:
+            env.merge(config)
+
+        env.define("SCI_BUILD_ID", "The unique build identifier",
+                   read_only = True, source = "initial environment",
+                   value = build_id)
+        env.define("SCI_BUILD_NAME", "The unique build name",
+                   read_only = True, source = "initial environment",
+                   value = build_name)
+
+        hostname = socket.gethostname()
+        if hostname.endswith(".local"):
+            hostname = hostname[:-len(".local")]
+        env.define("SCI_HOSTNAME", "Host Name", read_only = True,
+                   value = hostname, source = "initial environment")
+
+        now = datetime.now()
+        env.define("SCI_DATETIME", "The current date and time",
+                   read_only = True, source = "initial environment",
+                   value = now.strftime("%Y-%m-%d_%H-%M-%S"))
+
+        return env
+
+    @classmethod
     def run(cls, session, build_id, jobserver, entrypoint_name = "",
             args = [], kwargs = {}, env = None):
         # Fetch build information
         build_info = HttpClient(jobserver).call('/build/%s.json' % build_id)
         build_info = build_info['build']
-        params = build_info["parameters"]
 
         # Fetch the recipe
+        recipe_ref = build_info['recipe_ref']
         recipe = os.path.join(session.path, 'build.py')
         Bootstrap.get_url(jobserver,
-                          '/recipe/%s.json' % build_info['recipe_ref'],
+                          '/recipe/%s.json' % recipe_ref,
                           recipe)
+
+        # And the metadata, which we load.
+        metadata = HttpClient(jobserver).call('/metadata/%s.json' % recipe_ref)
 
         # Fetch configs
         config = os.path.join(session.path, 'config.py')
         Bootstrap.get_url(jobserver, '/config/master.txt', config)
+
+        if env:
+            env = Environment.deserialize(env)
+        else:
+            build_name = build_info['name']
+            env = Bootstrap.create_env(metadata, build_info['parameters'],
+                                       config, build_id, build_name)
 
         mod = imp.new_module('recipe')
         mod.__file__ = recipe
@@ -65,12 +133,7 @@ class Bootstrap(object):
         job = Bootstrap._find_job(mod)
         entrypoint = Bootstrap._find_entrypoint(job, entrypoint_name)
 
-        if env:
-            env = Environment.deserialize(env)
-
-        ret = job._start(session, entrypoint, params, args, kwargs,
-                         env, build_id = build_id,
-                         build_name = build_info['name'])
+        ret = job._start(env, session, entrypoint, args, kwargs)
 
         # Update the session
         session = Session.load(session.id)

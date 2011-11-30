@@ -1,49 +1,62 @@
 #!/usr/bin/env python
+#
+# Description:
+#    Builds android (several products and variants) and saves the
+#    resulting images as zip-files.
+#
+# Parameters:
+#  BRANCH:
+#    description: Manifest branch
+#    required: True
+#
+#  BUILD_ID_PREFIX:
+#    description: The build ID prefix to use
+#
+#  PRODUCTS:
+#    description: The products to build (will be guessed if not specified)
+#    type: array
+#
+#  MANIFEST_FILE:
+#    description: Manifest filename
+#    default: default.xml
+#
+#  PRODUCTS:
+#    description: Products to build
+#
+#  VARIANTS:
+#    description: Variants to build
+#    type: checkbox
+#    options: [eng, userdebug, user]
+#    default: [eng, userdebug, user]
+#
 import time
 from sci import Job
 
 job = Job(__name__, debug = True)
 
-# Parameters - to allow a GUI to easily list them
-branch          = job.parameter("BRANCH", "Manifest branch", required = True)
-build_id_prefix = job.parameter("BUILD_ID_PREFIX", "The build ID prefix to use")
-manifest_file   = job.parameter("MANIFEST_FILE", "Manifest Filename",
-                                default = "default.xml")
-products        = job.parameter("PRODUCTS", "Products to build", type = "array")
-variants        = job.parameter("VARIANTS", "Variants to build", type = "array",
-                                default = ["eng", "userdebug", "user"])
 
-
-# This job works as follows    <-- run single matrix job *3 -->
-#                           / get source -> build android -> zip \
-#  create   ->  create  -> -  get source -> build android -> zip  -  create
-# build id     manifest     \ get source -> build android -> zip /   report
-#                          <<--------- run matrix jobs ---------->>
-
-
-@job.default(products)
+@job.default("PRODUCTS")
 def get_products():
     """A function that will be evaluated to get the default
        value for 'products' in case it's not specified"""
 
-    if "donut" in branch():
+    if "donut" in job.env['BRANCH']:
         return ["g1", "emulator"]
-    if "eclair" in branch():
+    if "eclair" in job.env['BRANCH']:
         return ["droid", "nexus_one", "emulator"]
-    if "gingerbread" in branch():
+    if "gingerbread" in job.env['BRANCH']:
         return ["nexus_one", "nexus_s", "emulator"]
     job.error("Don't know which products to build!")
 
 
-@job.default(build_id_prefix)
+@job.default("BUILD_ID_PREFIX")
 def default_build_id_prefix():
-    return branch().upper().replace("-", "_")
+    return job.env['BRANCH'].upper().replace("-", "_")
 
 
 @job.step("Create Build ID")
 def create_build_id():
-    """A very simple step"""
-    build_id = build_id_prefix() + "_" + time.strftime("%y%m%d_%H%M%S")
+    build_id = job.env['BUILD_ID_PREFIX'] + "_" + time.strftime("%y%m%d_%H%M%S")
     return build_id
 
 
@@ -99,8 +112,8 @@ def run_single_matrix_job(product, variant):
 @job.step("Run matrix jobs")
 def run_matrix_jobs():
     """Running jobs asynchronously"""
-    for product in products():
-        for variant in variants():
+    for product in job.env["PRODUCTS"]:
+        for variant in job.env["VARIANTS"]:
             job.agents.async(run_single_matrix_job, args = [product, variant])
 
     for result in job.agents.run():

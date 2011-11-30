@@ -8,11 +8,8 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import re, os, socket, time, sys, types, subprocess, logging, json
-from datetime import datetime
-from .config import Config
+import re, os, time, sys, types, subprocess, logging, json
 from .environment import Environment
-from .params import Parameters, ParameterError
 from .artifacts import Artifacts
 from .agents import Agents
 from .session import Session
@@ -70,8 +67,8 @@ class Job(object):
         self._job_key = os.environ.get("SCI_JOB_KEY")
         self._current_step = None
 
-        self.env = self._create_environment()
-        self._params = Parameters(self.env)
+        self.env = Environment()
+        self._default_fns = {}
         self.artifacts = Artifacts(self, "http://localhost:6698")
         self.agents = Agents(self, "http://localhost:6699")
         self.jobserver = "http://localhost:6697"
@@ -94,33 +91,11 @@ class Job(object):
 
     session = property(get_session, set_session)
 
-    def parameter(self, name, description = "", default = None,
-                  **kwargs):
-        param = self._params.declare(name, description = description,
-                                     default = default, **kwargs)
-        self.env.define(name, description, source = "parameter", final = True)
-        return param
-
-    def _create_environment(self):
-        env = Environment()
-
-        hostname = socket.gethostname()
-        if hostname.endswith(".local"):
-            hostname = hostname[:-len(".local")]
-        env.define("SCI_HOSTNAME", "Host Name", read_only = True,
-                   value = hostname, source = "initial environment")
-
-        now = datetime.now()
-        env.define("SCI_DATETIME", "The current date and time",
-                   read_only = True, source = "initial environment",
-                   value = now.strftime("%Y-%m-%d_%H-%M-%S"))
-        return env
-
     ### Decorators ###
 
-    def default(self, what, **kwargs):
+    def default(self, name, **kwargs):
         def decorator(f):
-            what.default = f
+            self._default_fns[name] = f
             return f
         return decorator
 
@@ -154,55 +129,27 @@ class Job(object):
     def _parse_arguments(self, params):
         # Parse parameters
         parser = OptionParser()
-        parser.add_option("--list-parameters", dest = "list_parameters",
-                          action = "store_true",
-                          help = "List job parameters and quit")
         (opts, args) = parser.parse_args()
 
-        if opts.list_parameters:
-            self._params.print_help()
-            sys.exit(2)
         # Parse parameters specified as args:
         for arg in args:
             if "=" in arg:
                 k, v = arg.split("=", 2)
                 params[k] = v
 
-    def _start(self, session, entrypoint, params, args,
-               kwargs, env, build_id, build_name):
+    def _start(self, env, session, entrypoint, args, kwargs):
         # Must set time first. It's used when printing
         self.start_time = time.time()
         self.session = session
-        self.build_id = build_id
-        if entrypoint.is_main:
-            self.env.define("SCI_BUILD_ID", "The unique build identifier",
-                            read_only = True, source = "initial environment",
-                            value = self.build_id)
-            self.env.define("SCI_BUILD_NAME", "The unique build name",
-                            read_only = True, source = "initial environment",
-                            value = build_name)
-            # Set parameters
-            for k in params:
-                self.env[k] = params[k]
+        self.build_id = env['SCI_BUILD_ID']
+        self.env = env
 
-            try:
-                self._params.evaluate()
-            except ParameterError as e:
-                print("error: %s " % e)
-                print("")
-                print("Run with --list-parameters to list them.")
-                sys.exit(2)
+        if entrypoint.is_main:
+            for name in self._default_fns:
+                if not name in env:
+                    env[name] = self._default_fns[name]()
 
         self._print_banner("Preparing Job", dash = "=")
-
-        # Read global config file
-        config = Config.from_pyfile(os.path.join(session.path, 'config.py'))
-        if config:
-            self.env.merge(config)
-
-        # Merge environments
-        if env:
-            self.env.merge(env)
 
         print("Build-Id: %s" % self.build_id)
         self.env.print_values()
