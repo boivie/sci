@@ -41,8 +41,8 @@ urls = (
     '/N([0-9a-f]{40})/available.json', 'CheckInAvailable',
     '/N([0-9a-f]{40})/busy.json',      'CheckInBusy',
     '/N([0-9a-f]{40})/ping.json',      'Ping',
-    '/J([0-9a-f]{40})/dispatch.json',  'DispatchBuild',
-    '/D([0-9a-f]{40})/result.json',    'GetDispatchedResult',
+    '/dispatch',                       'DispatchBuild',
+    '/S([0-9a-f]{40})/result',    'GetDispatchedResult',
     '/info.json',                      'GetInfo'
 )
 
@@ -100,8 +100,8 @@ def get_did_or_make_avail(pipe, agent_id, agent_info):
     """Starts multi, doesn't exec"""
     pipe.watch(KEY_QUEUE)
     queue = pipe.zrange(KEY_QUEUE, 0, -1)
-    for dispatch_id in queue:
-        dispatch_info = json.loads(pipe.get(KEY_DISPATCH_INFO % dispatch_id))
+    for session_id in queue:
+        dispatch_info = json.loads(pipe.get(KEY_DISPATCH_INFO % session_id))
         # Do we fulfill its requirements?
         if dispatch_info['state'] != DISPATCH_STATE_QUEUED:
             continue
@@ -110,8 +110,8 @@ def get_did_or_make_avail(pipe, agent_id, agent_info):
         # Yup. Use it.
         agent_info["state"] = STATE_PENDING
         pipe.multi()
-        pipe.zrem(KEY_QUEUE, dispatch_id)
-        return dispatch_info
+        pipe.zrem(KEY_QUEUE, session_id)
+        return dispatch_info['data']
     # Nope. None matching -> put it as available.
     pipe.multi()
     agent_info["state"] = STATE_AVAIL
@@ -121,11 +121,11 @@ def get_did_or_make_avail(pipe, agent_id, agent_info):
 
 def handle_last_results(db, agent_id, data):
     data = json.loads(data)
-    dispatch_id = data.get('id')
+    session_id = data.get('id')
     result = data.get('result')
-    if not dispatch_id:
+    if not session_id:
         return
-    key = KEY_DISPATCH_INFO % dispatch_id
+    key = KEY_DISPATCH_INFO % session_id
     while True:
         try:
             with db.pipeline() as pipe:
@@ -167,9 +167,10 @@ class CheckInAvailable:
                     pipe.execute()
                     # We succeeded!
                     if dinfo:
+                        session_id = dinfo['session_id']
                         logging.debug("A%s checked in -> D%s" % (agent_id,
-                                                                 dinfo['id']))
-                        return jsonify(do = dinfo)
+                                                                 session_id))
+                        return jsonify(do = json.dumps(dinfo))
                     else:
                         logging.debug("A%s checked in" % agent_id)
                         return jsonify()
@@ -227,7 +228,7 @@ class Ping:
         return jsonify(status = "ok")
 
 
-def allocate(pipe, agent_id, dispatch_id):
+def allocate(pipe, agent_id, session_id):
     """Starts multi, doesn't exec"""
     pipe.watch(KEY_AGENT % agent_id)
     info = json.loads(pipe.get(KEY_AGENT % agent_id))
@@ -245,40 +246,52 @@ def allocate(pipe, agent_id, dispatch_id):
         return None
 
     info["state"] = STATE_PENDING
-    info['dispatch_id'] = dispatch_id
+    info['dispatch_id'] = session_id
     pipe.set(KEY_AGENT % agent_id, json.dumps(info))
     return info
 
 
-def dispatch_later(pipe, dispatch_id, labels, job, dispatch_data):
+def dispatch_later(pipe, input):
     """Starts multi, doesn't exec"""
+    session_id = input['session_id']
     pipe.multi()
-    pipe.set(KEY_DISPATCH_INFO % dispatch_id,
-             json.dumps({'id': dispatch_id,
-                         'job_id': job,
-                         'labels': labels,
-                         'data': dispatch_data,
+    pipe.set(KEY_DISPATCH_INFO % session_id,
+             json.dumps({'labels': input['labels'],
+                         'data': input,
                          'state': DISPATCH_STATE_QUEUED}))
     ts = float(time.time() * 1000)
-    pipe.zadd(KEY_QUEUE, ts, dispatch_id)
-    return dispatch_id
+    pipe.zadd(KEY_QUEUE, ts, session_id)
+    return session_id
 
 
-def do_dispatch(db, dispatch_id, agent_id, agent_url, job, dispatch_data):
+def do_dispatch(db, agent_id, agent_url, input):
+    print("AGENT URL: '%s'" % agent_url)
     client = HttpClient(agent_url)
-    result = client.call('/D%s/dispatch.json' % dispatch_id,
-                         input = dispatch_data)
+    client.call('/dispatch', input = json.dumps(input))
     # TODO: Possible race condition: The client may finish here,
     # and call 'checkin'.
-    db.set(KEY_DISPATCH_INFO % dispatch_id,
-           json.dumps({'data': dispatch_data,
-                       'agent_id': agent_id,
+    db.set(KEY_DISPATCH_INFO % input['session_id'],
+           json.dumps({'agent_id': agent_id,
                        'state': DISPATCH_STATE_RUNNING}))
 
 
-def dispatch(labels, job, dispatch_data):
+def report_to_jobserver(job_server, build_id, parent_session,
+                        session_id, agent_id = None):
+    c = HttpClient(job_server)
+    d = dict(build_id = build_id, parent = parent_session,
+             session_id = session_id, agent_id = agent_id)
+    c.call('/session/created', input = json.dumps(d))
+
+
+def dispatch(input):
+    build_id = input['build_id']
+    labels = input['labels']
+    job_server = input['job_server']
+    parent = input.get('parent_session')
     labels.remove("any")
-    dispatch_id = random_sha1()
+
+    session_id = random_sha1()
+    input['session_id'] = session_id
 
     db = conn()
     alloc_key = KEY_ALLOCATION % random_sha1()
@@ -293,39 +306,40 @@ def dispatch(labels, job, dispatch_data):
                 pipe.sinterstore(alloc_key, lkeys)
                 agent_id = pipe.spop(alloc_key)
                 if not agent_id:
-                    dispatch_later(pipe, dispatch_id,
-                                   labels, job,
-                                   dispatch_data)
+                    dispatch_later(pipe, input)
                     pipe.delete(alloc_key)
                     pipe.execute()
+                    report_to_jobserver(job_server, build_id, parent,
+                                        session_id)
                 else:
-                    info = allocate(pipe, agent_id, dispatch_id)
+                    info = allocate(pipe, agent_id, session_id)
                     pipe.delete(alloc_key)
                     pipe.execute()
 
                     if not info:
                         continue
                     url = "http://%s:%s" % (info["ip"], info["port"])
-                    do_dispatch(db, dispatch_id, agent_id, url, job,
-                                dispatch_data)
-                return 'D' + dispatch_id
+                    do_dispatch(db, agent_id, url, input)
+                    report_to_jobserver(job_server, build_id, parent,
+                                        session_id, agent_id)
+                return 'S' + session_id
             except redis.WatchError:
                 continue
 
 
 class DispatchBuild:
-    def POST(self, job):
+    def POST(self):
         input = json.loads(web.data())
 
-        dispatch_id = dispatch(input['labels'], job, input['data'])
-        return jsonify(id = dispatch_id)
+        session_id = dispatch(input)
+        return jsonify(id = session_id)
 
 
 class GetDispatchedResult:
-    def GET(self, dispatch_id):
+    def GET(self, session_id):
         db = conn()
         while True:
-            info = db.get(KEY_DISPATCH_INFO % dispatch_id)
+            info = db.get(KEY_DISPATCH_INFO % session_id)
             if not info:
                 abort(404, "Dispatch ID not found")
             info = json.loads(info)

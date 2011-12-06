@@ -26,17 +26,18 @@ class Agent(object):
                 "funname": self.step.fun.__name__,
                 "args": self.args,
                 "kwargs": self.kwargs,
-                "env": job.env.serialize()}
-        data = json.dumps(dict(labels = ['any'],
-                               data = json.dumps(data)))
-        res = HttpClient(ahq_url).call('/J%s/dispatch.json' % job.build_id,
-                                       input = data)
+                "env": job.env.serialize(),
+                "labels": ['any'],
+                "session_id": None,  # not known yet
+                "parent_session": job.session.id}
+        res = HttpClient(ahq_url).call('/dispatch',
+                                       input = json.dumps(data))
         self.dispatch_id = res['id']
         self.state = STATE_RUNNING
 
     def join(self, url):
         assert(self.state == STATE_RUNNING)
-        res = HttpClient(url).call('/%s/result.json' % self.dispatch_id)
+        res = HttpClient(url).call('/%s/result' % self.dispatch_id)
         self.result = res['result']
         self.state = STATE_DONE
 

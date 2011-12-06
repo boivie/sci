@@ -12,8 +12,8 @@ from optparse import OptionParser
 import web, json, os
 
 urls = (
-    '/f/([0-9a-f]+)/(.+)',     'Transfer',
-    '/list/([0-9a-f]+).json',  'ListSession')
+    '/f/B([0-9a-f]+)/(.+)',     'Transfer',
+    '/list/B([0-9a-f]+).json',  'ListSession')
 
 web.config.debug = False
 app = web.application(urls, globals())

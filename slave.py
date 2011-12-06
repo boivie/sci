@@ -17,7 +17,7 @@ import ConfigParser
 from Queue import Queue, Full, Empty
 
 urls = (
-    '/D([0-9a-f]{40})/dispatch.json', 'StartJob',
+    '/dispatch', 'StartJob',
 )
 
 EXPIRY_TTL = 60
@@ -59,9 +59,8 @@ def abort(status, data):
 
 
 class StartJob:
-    def POST(self, dispatch_id):
-        if not put_item({'id': dispatch_id,
-                         'data': web.data()}):
+    def POST(self):
+        if not put_item(web.data()):
             abort(412, "Busy")
         return jsonify(status = "started")
 
@@ -177,7 +176,8 @@ class ExecutionThread(threading.Thread):
             if not item:
                 item = get_item()
 
-            session = Session.create()
+            session_id = json.loads(item)['session_id']
+            session = Session.create(session_id)
             run_job = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                    "run_job.py")
             args = [run_job, session.id]
@@ -187,7 +187,7 @@ class ExecutionThread(threading.Thread):
             proc = subprocess.Popen(args, stdin = subprocess.PIPE,
                                     stdout = stdout, stderr = subprocess.STDOUT,
                                     cwd = web.config._path)
-            proc.stdin.write(item['data'])
+            proc.stdin.write(item)
             proc.stdin.close()
             send_busy()
             return_code = proc.wait()
@@ -201,9 +201,8 @@ class ExecutionThread(threading.Thread):
             else:
                 print("Job terminated")
 
-            dispatch_id = item['id']
             job_result = session.return_value
-            item = send_available(dispatch_id, job_result)
+            item = send_available(session_id, job_result)
 
 
 if __name__ == "__main__":

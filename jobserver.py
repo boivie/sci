@@ -48,7 +48,8 @@ urls = (
     '/config/(.+).txt',            'GetConfig',
     '/job/(.+).json',              'GetPutJob',
     '/build/create/(.+).json',     'CreateBuild',
-    '/build/([0-9a-f]{40}).json',  'GetUpdateBuild',
+    '/build/B([0-9a-f]{40}).json',  'GetUpdateBuild',
+    '/session/created', 'ReportSessionCreated',
 )
 
 re_sha1 = re.compile('^([0-9a-f]{40})$')
@@ -290,7 +291,7 @@ class CreateBuild:
             except CommitException:
                 pass  # re-iterate
 
-        build['id'] = commit.id
+        build['id'] = 'B%s' % commit.id
         return jsonify(**build)
 
 
@@ -341,6 +342,12 @@ class GetUpdateBuild:
 
         return jsonify(status = 'ok',
                        ref = commit.id)
+
+
+class ReportSessionCreated:
+    def POST(self):
+        return jsonify(status = 'ok')
+
 
 if __name__ == "__main__":
     parser = OptionParser()
