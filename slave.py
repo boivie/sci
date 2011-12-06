@@ -85,7 +85,7 @@ def send_available(dispatch_id = None, job_result = None):
     print("%s checking in (available)" % web.config.token)
 
     client = HttpClient("http://127.0.0.1:6699")
-    result = client.call("/%s/available.json" % web.config.token,
+    result = client.call("/available/%s" % web.config.token,
                          input = json.dumps({'id': dispatch_id,
                                              'result': job_result}))
     return result.get('do')
@@ -96,7 +96,7 @@ def send_busy():
     print("%s checking in (busy)" % web.config.token)
 
     client = HttpClient("http://127.0.0.1:6699")
-    client.call("/%s/busy.json" % web.config.token,
+    client.call("/busy/%s" % web.config.token,
                 method = 'POST')
 
 
@@ -105,7 +105,7 @@ def send_ping():
     print("%s pinging" % web.config.token)
 
     client = HttpClient("http://127.0.0.1:6699")
-    client.call("/%s/ping.json" % web.config.token,
+    client.call("/ping/%s" % web.config.token,
                 method = "POST")
 
 
@@ -243,8 +243,9 @@ if __name__ == "__main__":
 
     print("Registering at AHQ and getting token")
     client = HttpClient("http://127.0.0.1:6699")
-    ret = client.call("/A%s/register.json" % web.config.node_id,
-                      input = json.dumps({"port": web.config.port,
+    ret = client.call("/register",
+                      input = json.dumps({"id": web.config.node_id,
+                                          "port": web.config.port,
                                           "labels": ["macos"]}))
     print("Got token %s" % ret["token"])
     web.config.token = ret["token"]

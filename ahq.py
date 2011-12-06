@@ -37,13 +37,13 @@ DISPATCH_STATE_RUNNING = 'running'
 DISPATCH_STATE_DONE = 'done'
 
 urls = (
-    '/A([0-9a-f]{40})/register.json',  'Register',
-    '/N([0-9a-f]{40})/available.json', 'CheckInAvailable',
-    '/N([0-9a-f]{40})/busy.json',      'CheckInBusy',
-    '/N([0-9a-f]{40})/ping.json',      'Ping',
-    '/dispatch',                       'DispatchBuild',
-    '/S([0-9a-f]{40})/result',    'GetDispatchedResult',
-    '/info.json',                      'GetInfo'
+    '/available/N([0-9a-f]{40})', 'CheckInAvailable',
+    '/busy/N([0-9a-f]{40})',      'CheckInBusy',
+    '/dispatch',                  'DispatchBuild',
+    '/info',                      'GetInfo',
+    '/ping/N([0-9a-f]{40})',      'Ping',
+    '/register',                  'Register',
+    '/result/S([0-9a-f]{40})',    'GetDispatchedResult',
 )
 
 app = web.application(urls, globals())
@@ -69,15 +69,11 @@ def conn():
 
 
 class Register:
-    def POST(self, agent_id):
+    def POST(self):
         input = json.loads(web.data())
         db = conn()
+        agent_id = input['id']
         token_id = random_sha1()
-        old_info = db.get(KEY_AGENT % agent_id)
-        if old_info:
-            old_info = json.loads(old_info)
-        else:
-            old_info = {}
 
         info = {"ip": web.ctx.ip,
                 "port": input["port"],
@@ -143,7 +139,6 @@ def handle_last_results(db, agent_id, data):
 
 class CheckInAvailable:
     def POST(self, token_id):
-        now = get_ts()
         db = conn()
 
         agent_id = db.get(KEY_TOKEN % token_id)
@@ -156,32 +151,31 @@ class CheckInAvailable:
         while True:
             try:
                 with db.pipeline() as pipe:
-                    dinfo = None
                     pipe.watch(KEY_AGENT % agent_id)
                     info = json.loads(pipe.get(KEY_AGENT % agent_id))
 
                     dinfo = get_did_or_make_avail(pipe, agent_id, info)
-                    info['seen'] = now
+
+                    info['seen'] = get_ts()
                     info['state'] = STATE_AVAIL
                     pipe.set(KEY_AGENT % agent_id, json.dumps(info))
                     pipe.execute()
-                    # We succeeded!
+
                     if dinfo:
                         session_id = dinfo['session_id']
-                        logging.debug("A%s checked in -> D%s" % (agent_id,
+                        logging.debug("A%s checked in -> S%s" % (agent_id,
                                                                  session_id))
                         return jsonify(do = json.dumps(dinfo))
-                    else:
-                        logging.debug("A%s checked in" % agent_id)
-                        return jsonify()
                     break
             except redis.WatchError:
                 continue
 
+        logging.debug("A%s checked in" % agent_id)
+        return jsonify()
+
 
 class CheckInBusy:
     def POST(self, token_id):
-        now = get_ts()
         db = conn()
 
         agent_id = db.get(KEY_TOKEN % token_id)
@@ -193,14 +187,15 @@ class CheckInBusy:
                 with db.pipeline() as pipe:
                     pipe.watch(KEY_AGENT % agent_id)
                     info = json.loads(pipe.get(KEY_AGENT % agent_id))
-                    pipe.multi()
-                    info["seen"] = now
+                    info["seen"] = get_ts()
                     info["state"] = STATE_BUSY
+                    pipe.multi()
                     pipe.set(KEY_AGENT % agent_id, json.dumps(info))
                     pipe.execute()
                     break
             except redis.WatchError:
                 continue
+
         return jsonify()
 
 
@@ -216,7 +211,6 @@ class Ping:
                 with db.pipeline() as pipe:
                     pipe.watch(KEY_AGENT % agent_id)
                     info = json.loads(pipe.get(KEY_AGENT % agent_id))
-
                     info["seen"] = get_ts()
                     pipe.multi()
                     pipe.set(KEY_AGENT % agent_id, json.dumps(info))
@@ -225,7 +219,7 @@ class Ping:
             except redis.WatchError:
                 continue
 
-        return jsonify(status = "ok")
+        return jsonify()
 
 
 def allocate(pipe, agent_id, session_id):
@@ -284,10 +278,7 @@ def report_to_jobserver(job_server, build_id, parent_session,
 
 
 def dispatch(input):
-    build_id = input['build_id']
     labels = input['labels']
-    job_server = input['job_server']
-    parent = input.get('parent_session')
     labels.remove("any")
 
     session_id = random_sha1()
@@ -309,8 +300,6 @@ def dispatch(input):
                     dispatch_later(pipe, input)
                     pipe.delete(alloc_key)
                     pipe.execute()
-                    report_to_jobserver(job_server, build_id, parent,
-                                        session_id)
                 else:
                     info = allocate(pipe, agent_id, session_id)
                     pipe.delete(alloc_key)
@@ -320,8 +309,10 @@ def dispatch(input):
                         continue
                     url = "http://%s:%s" % (info["ip"], info["port"])
                     do_dispatch(db, agent_id, url, input)
-                    report_to_jobserver(job_server, build_id, parent,
-                                        session_id, agent_id)
+
+                parent = input.get('parent_session')
+                report_to_jobserver(input['job_server'], input['build_id'],
+                                    parent, session_id, agent_id)
                 return 'S' + session_id
             except redis.WatchError:
                 continue

@@ -37,7 +37,7 @@ class Agent(object):
 
     def join(self, url):
         assert(self.state == STATE_RUNNING)
-        res = HttpClient(url).call('/%s/result' % self.dispatch_id)
+        res = HttpClient(url).call('/result/%s' % self.dispatch_id)
         self.result = res['result']
         self.state = STATE_DONE
 
