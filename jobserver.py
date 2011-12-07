@@ -9,7 +9,7 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import web, json, os, re, yaml
+import web, json, os, re, yaml, stat
 import email.utils
 from dulwich.repo import Repo
 from dulwich.objects import Blob, Tree, Commit, parse_timezone
@@ -94,6 +94,42 @@ def create_commit(repo, files = None, tree = None, parent = None,
     commit.message = message
 
     object_store.add_object(tree)
+    object_store.add_object(commit)
+    return commit
+
+
+def create_build_dir(repo, num, data, root, parent,
+                     author = AUTHOR, message = "No message given"):
+    object_store = repo.object_store
+    tree = Tree()
+    root = root or Tree()
+
+    blob = Blob.from_string(json.dumps(data))
+    object_store.add_object(blob)
+
+    tree.add(0100644, 'build.json', blob.id)
+    object_store.add_object(tree)
+
+    root.add(stat.S_IFDIR, str(num), tree.id)
+
+    blob = Blob.from_string(str(num))
+    object_store.add_object(blob)
+    root.add(0120000, 'current', blob.id)
+    object_store.add_object(root)
+
+    commit = Commit()
+    if parent:
+        commit.parents = [parent]
+    else:
+        commit.parents = []
+    commit.tree = root.id
+    commit.author = commit.committer = author
+    commit.commit_time = commit.author_time = int(time())
+    tz = parse_timezone('+0100')[0]
+    commit.commit_timezone = commit.author_timezone = tz
+    commit.encoding = "UTF-8"
+    commit.message = message
+
     object_store.add_object(commit)
     return commit
 
@@ -257,17 +293,19 @@ class CreateBuild:
 
         while True:
             # Allocate a build number:
+            number = 1
+            tree = None
             try:
                 cur_build_ref = builds.refs['refs/heads/%s' % job['name']]
+            except KeyError:
+                cur_build_ref = None
+
+            if cur_build_ref:
                 c = builds.get_object(cur_build_ref)
                 tree = builds.get_object(c.tree)
-                mode, latest_sha1 = tree['current.json']  # a link
+                mode, latest_sha1 = tree['current']  # a link
                 latest = builds.get_object(latest_sha1).data
-                number = int(latest[:-5]) + 1
-            except:
-                cur_build_ref = None
-                number = 1
-                tree = None
+                number = int(latest) + 1
             build = dict(job_name = job['name'],
                          number = number,
                          name = "%s-%d" % (job['name'], number),
@@ -276,14 +314,8 @@ class CreateBuild:
                          job_ref = job_ref,
                          recipe_ref = recipe_ref,
                          parameters = input.get("parameters", {}))
-            fname = '%d.json' % number
-            contents = json.dumps(build)
-            commit = create_commit(builds,
-                                   files = [(fname, 0100644, contents),
-                                            ('current.json', 0120000, fname)],
-                                   tree = tree,
-                                   parent = cur_build_ref,
-                                   message = "Create Build %s" % build['name'])
+            commit = create_build_dir(builds, number, build, tree,
+                                      cur_build_ref)
             try:
                 ref = "refs/heads/%s" % job['name']
                 update_head(builds, ref, cur_build_ref, commit.id)
@@ -296,14 +328,15 @@ class CreateBuild:
 
 
 def find_build(build_id):
-    # The ID is the commit where the build was added. That
-    # will give us the full name and the number.
+    """Build ID Ba0494bef22 -> private, 22"""
     repo = get_repo(GIT_BUILDS)
     commit = repo.get_object(build_id)
-    tree = repo.get_object(commit.tree)
-    mode, sha1 = tree['current.json']
-    fname = repo.get_object(sha1).data
-    mode, sha1 = tree[fname]
+    root = repo.get_object(commit.tree)
+    mode, sha1 = root['current']
+    number = repo.get_object(sha1).data
+    mode, tree_sha1 = root[str(number)]
+    tree = repo.get_object(tree_sha1)
+    mode, sha1 = tree['build.json']
     create_obj = json.loads(repo.get_object(sha1).data)
     return create_obj["job_name"], create_obj["number"]
 
@@ -315,33 +348,12 @@ class GetUpdateBuild:
 
         cur_ref = repo.refs['refs/heads/%s' % job_name]
         commit = repo.get_object(cur_ref)
-        tree = repo.get_object(commit.tree)
-        mode, sha1 = tree['%d.json' % number]
+        root = repo.get_object(commit.tree)
+        _, tree_sha1 = root[str(number)]
+        tree = repo.get_object(tree_sha1)
+        _, sha1 = tree['build.json']
         cur_obj = json.loads(repo.get_object(sha1).data)
         return jsonify(ref = cur_ref, build = cur_obj)
-
-    def POST(self, build_id):
-        repo = get_repo(GIT_BUILDS)
-        job_name, number = find_build(build_id)
-        input = json.loads(web.data())
-        cur_ref = repo.refs['refs/heads/%s' % job_name]
-        commit = repo.get_object(cur_ref)
-        tree = repo.get_object(commit.tree)
-        fname = '%s.json' % number
-        contents = json.dumps(input['build'])
-        commit = create_commit(repo,
-                               tree = tree,
-                               files = [(fname, 0100644, contents)],
-                               message = "Updated %s-%d" % (job_name, number),
-                               parent = cur_ref)
-        try:
-            ref = "refs/heads/%s" % job_name
-            update_head(repo, ref, cur_ref, commit.id)
-        except CommitException:
-            abort(412, "Race condition")
-
-        return jsonify(status = 'ok',
-                       ref = commit.id)
 
 
 class ReportSessionCreated:
