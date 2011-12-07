@@ -38,8 +38,6 @@ class Session(object):
     def create(cls, id = None):
         s = Session(id)
         os.makedirs(s.workspace)
-        with open(os.path.join(s.path, "_do_not_package.txt"), "w") as f:
-            f.write("Do not add this to a job's package.")
         s.save()
         return s
 
