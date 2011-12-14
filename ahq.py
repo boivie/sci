@@ -269,14 +269,6 @@ def do_dispatch(db, agent_id, agent_url, input):
                        'state': DISPATCH_STATE_RUNNING}))
 
 
-def report_to_jobserver(job_server, build_id, parent_session,
-                        session_id, agent_id = None):
-    c = HttpClient(job_server)
-    d = dict(build_id = build_id, parent = parent_session,
-             session_id = session_id, agent_id = agent_id)
-    c.call('/session/created', input = json.dumps(d))
-
-
 def dispatch(input):
     labels = input['labels']
     labels.remove("any")
@@ -310,9 +302,6 @@ def dispatch(input):
                     url = "http://%s:%s" % (info["ip"], info["port"])
                     do_dispatch(db, agent_id, url, input)
 
-                parent = input.get('parent_session')
-                report_to_jobserver(input['job_server'], input['build_id'],
-                                    parent, session_id, agent_id)
                 return 'S' + session_id
             except redis.WatchError:
                 continue

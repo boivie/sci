@@ -15,6 +15,8 @@ from .agents import Agents
 from .session import Session
 from .bootstrap import Bootstrap
 from .http_client import HttpClient
+from .slog import (StepBegun, StepFunDone, StepJoined, JobBegun, JobDone,
+                   JobErrorThrown)
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -40,11 +42,19 @@ class Step(JobFunction):
         self.job = job
 
     def __call__(self, *args, **kwargs):
+        self.job.slog(StepBegun(self.name, args, kwargs))
+        time_start = time.time()
         self.job._current_step = self
         self.job._print_banner("Step: '%s'" % self.name)
         ret = self.fun(*args, **kwargs)
+        time_fun = time.time()
+        self.job.slog(StepFunDone(self.name, time_fun - time_start))
+
         # Wait for any unfinished detached jobs
-        self.job.agents.run()
+        if self.job.agents.should_run():
+            self.job.agents.run()
+            time_joined = time.time()
+            self.job.slog(StepJoined(self.name, time_joined - time_fun))
         return ret
 
 
@@ -149,6 +159,7 @@ class Job(object):
                 if not name in env:
                     env[name] = self._default_fns[name]()
 
+        self.slog(JobBegun())
         self._print_banner("Preparing Job", dash = "=")
 
         print("Build-Id: %s" % self.build_id)
@@ -157,7 +168,12 @@ class Job(object):
         self._print_banner("Starting Job", dash = "=")
         ret = entrypoint.fun(*args, **kwargs)
         self._print_banner("Job Finished", dash = "=")
+        self.slog(JobDone())
         return ret
+
+    def slog(self, item):
+        data = item.serialize(self.build_id, self.session.id)
+        HttpClient(self.jobserver).call("/slog", input = data)
 
     def start(self, params = {}):
         """Start a job manually (for testing)
@@ -237,4 +253,5 @@ class Job(object):
         return value
 
     def error(self, what):
+        self.slog(JobErrorThrown(what))
         raise JobException(what)

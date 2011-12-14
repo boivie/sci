@@ -9,6 +9,7 @@
 """
 import json
 from .http_client import HttpClient
+from .slog import DispatchedJob, JobJoined
 
 STATE_NONE, STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(4)
 
@@ -20,7 +21,7 @@ class Agent(object):
         self.kwargs = kwargs
         self.state = STATE_NONE
 
-    def run(self, ahq_url, job):
+    def run(self, url, job):
         data = {"build_id": job.build_id,
                 "job_server": job.jobserver,
                 "funname": self.step.fun.__name__,
@@ -30,14 +31,15 @@ class Agent(object):
                 "labels": ['any'],
                 "session_id": None,  # not known yet
                 "parent_session": job.session.id}
-        res = HttpClient(ahq_url).call('/dispatch',
-                                       input = json.dumps(data))
+        res = HttpClient(url).call('/dispatch', input = json.dumps(data))
+        job.slog(DispatchedJob(res['id']))
         self.dispatch_id = res['id']
         self.state = STATE_RUNNING
 
-    def join(self, url):
+    def join(self, url, job):
         assert(self.state == STATE_RUNNING)
         res = HttpClient(url).call('/result/%s' % self.dispatch_id)
+        job.slog(JobJoined(self.dispatch_id))
         self.result = res['result']
         self.state = STATE_DONE
 
@@ -59,10 +61,16 @@ class Agents(object):
             agent.run(self._ahq_url, self.job)
 
         for agent in self.agents:
-            agent.join(self._ahq_url)
+            agent.join(self._ahq_url, self.job)
 
         # Return all the return values
         res = [a.result for a in self.agents]
 
         self.agents = []
         return res
+
+    def should_run(self):
+        for agent in self.agents:
+            if agent.state != STATE_DONE:
+                return True
+        return False

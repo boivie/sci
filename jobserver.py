@@ -48,8 +48,8 @@ urls = (
     '/config/(.+).txt',            'GetConfig',
     '/job/(.+).json',              'GetPutJob',
     '/build/create/(.+).json',     'CreateBuild',
-    '/build/B([0-9a-f]{40}).json',  'GetUpdateBuild',
-    '/session/created', 'ReportSessionCreated',
+    '/build/B([0-9a-f]{40}).json', 'GetUpdateBuild',
+    '/slog',                       'AddLog',
 )
 
 re_sha1 = re.compile('^([0-9a-f]{40})$')
@@ -356,9 +356,10 @@ class GetUpdateBuild:
         return jsonify(ref = cur_ref, build = cur_obj)
 
 
-class ReportSessionCreated:
+class AddLog:
     def POST(self):
-        return jsonify(status = 'ok')
+        print(web.data())
+        return jsonify()
 
 
 if __name__ == "__main__":
