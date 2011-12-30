@@ -1,41 +1,39 @@
-Environment Variables
----------------------
+How to get started
+==================
 
-This information can be provided to a slave:
+Install
+-------
 
- - SCI_MASTER_URL: The url to the master, if any.
- - SCI_SERVER_ID: A short server identifier.
-   if this is not provided (which would mean running in a debug environment),
-   a random server ID is generated.
- - SCI_JOB_KEY: The job key, which it will use with all communication to the
-   master. In a debug environment, there is no master, so it's unused.
- - SCI_CONFIG: Path to the global configuration file. It will be loaded
-   by the job prior to executing it.
+$ virtualenv ENV
+$ . ENV/bin/activate
+$ pip install -r requirements.txt
 
+Starting the system
+-------------------
 
-Job Types
----------
+The commands below are expected to be run in the SCI directory. Almost all of them
+also expect that you have run ''. ENV/bin/activate'' first. They should be run
+in a terminal window of its own (or a GNU screen window).
 
-Main Job
-~~~~~~~~
+$ redis-server redis.conf
+$ ./ss.py
+$ ./jobserver.py        
+$ ./ahq.py
+$ ./start_slaves.sh 6
 
-This is the job that is started by an external action (most often by the user).
+Running the sample
+------------------
 
-- A job's main function will be the entry point.
-- The user provides it with a list of parameters. Some may not be given and
-  the default value will be used. Required parameters will have to be set.
-- A configuration file may be loaded, if one is specified.
-- An environment will be created with some default values.
+The sample is a matrix job which builds Android. If you don't want to build an entire
+Android system every time, we can use a mocked version of the important parts of
+Android's build system.
 
-Sub-Job
-~~~~~~~
+$ wget http://github.com/boivie/sci/mock-android-repo.zip
+$ unzip mock-android-repo.zip 
+$ git daemon --export-all --base-path=mock-android-repo --detach
 
-A 'main job' may trigger sub-jobs that can run on other machines. They are
-always started by a main job and their entry point will be a step inside
-the recipe.
+Now we have a running GIT server offering a mock Android source repository. Let
+us now run the sample:
 
-- A job's step (as specified by the main job) will be the entry point.
-- The environment, parameters and configuration files from the main job
-  will be used.
-
-The sub-job always belongs to a main job.
+$ cd samples
+$ ./build-android.py BRANCH=donut-dev
