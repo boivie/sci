@@ -28,7 +28,7 @@ The sample is a matrix job which builds Android. If you don't want to build an e
 Android system every time, we can use a mocked version of the important parts of
 Android's build system.
 
-$ wget http://github.com/boivie/sci/mock-android-repo.zip
+$ wget https://github.com/downloads/boivie/sci/mock-android-repo.zip
 $ unzip mock-android-repo.zip 
 $ git daemon --export-all --base-path=mock-android-repo --detach
 
