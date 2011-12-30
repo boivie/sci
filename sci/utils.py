@@ -1,3 +1,12 @@
+"""
+    sci.utils
+    ~~~~~~~~~
+
+    SCI Utilities
+
+    :copyright: (c) 2011 by Victor Boivie
+    :license: Apache License 2.0
+"""
 import random, hashlib
 
 
