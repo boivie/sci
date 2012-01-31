@@ -76,6 +76,7 @@ class Register:
         token_id = random_sha1()
 
         info = {"ip": web.ctx.ip,
+                'nick': input.get('nick', ''),
                 "port": input["port"],
                 "state": STATE_INACTIVE,
                 "token_id": token_id,
@@ -340,12 +341,16 @@ class GetInfo:
                 queue.append({"id": did,
                               "labels": info["labels"]})
         all = []
+        now = int(time.time())
         for agent_id in db.smembers(KEY_ALL):
             info = db.get(KEY_AGENT % agent_id)
             if info:
                 info = json.loads(info)
-                all.append({"ip": info["ip"],
-                            "port": info["port"],
+                if info["seen"] + SEEN_EXPIRY_TTL < now:
+                    info['state'] = STATE_INACTIVE
+                    db.set(KEY_AGENT % agent_id, json.dumps(info))
+                all.append({'id': agent_id,
+                            'nick': info.get('nick', ''),
                             "state": info["state"],
                             "seen": info["seen"],
                             "labels": info["labels"]})

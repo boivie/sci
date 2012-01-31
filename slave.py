@@ -243,8 +243,10 @@ if __name__ == "__main__":
 
     print("Registering at AHQ and getting token")
     client = HttpClient("http://127.0.0.1:6699")
+    hostname = "%s-%d" % (os.uname()[1], web.config.port)
     ret = client.call("/register",
                       input = json.dumps({"id": web.config.node_id,
+                                          'nick': hostname,
                                           "port": web.config.port,
                                           "labels": ["macos"]}))
     print("Got token %s" % ret["token"])
