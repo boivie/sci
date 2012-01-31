@@ -51,6 +51,7 @@ urls = (
     '/build/B([0-9a-f]{40}).json', 'GetUpdateBuild',
     '/slog',                       'AddLog',
     '/recipes',                    'ListRecipes',
+    '/jobs',                       'ListJobs',
 )
 
 re_sha1 = re.compile('^([0-9a-f]{40})$')
@@ -294,7 +295,10 @@ class CreateBuild:
         config = get_repo(GIT_CONFIG)
         builds = get_repo(GIT_BUILDS)
         job, job_ref = get_job(config, name_or_sha1)
-        recipe_ref = get_recipe_ref(config, job["recipe"])
+
+        recipe_ref = job.get('recipe_ref')
+        if not recipe_ref:
+            recipe_ref = get_recipe_ref(config, job['recipe'])
 
         while True:
             # Allocate a build number:
@@ -317,6 +321,7 @@ class CreateBuild:
                          state = STATE_STARTED,
                          created = email.utils.formatdate(localtime = True),
                          job_ref = job_ref,
+                         recipe = job['recipe'],
                          recipe_ref = recipe_ref,
                          parameters = input.get("parameters", {}))
             commit = create_build_dir(builds, number, build, tree,
@@ -375,6 +380,22 @@ class ListRecipes:
                 info['tags'] = metadata['Tags']
             recipes.append(info)
         return jsonify(recipes = recipes)
+
+
+class ListJobs:
+    def GET(self):
+        repo = get_repo(GIT_CONFIG)
+        jobs = []
+        for name in repo.refs.keys():
+            if not name.startswith("refs/heads/jobs/"):
+                continue
+            job, job_ref = get_job(repo, repo.refs[name])
+            info = {'id': name[16:],
+                    'recipe': job['recipe']}
+            if 'recipe_ref' in job:
+                info['recipe_ref'] = job['recipe_ref']
+            jobs.append(info)
+        return jsonify(jobs = jobs)
 
 
 class AddLog:

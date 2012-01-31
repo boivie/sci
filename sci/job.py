@@ -193,8 +193,9 @@ class Job(object):
                              input = json.dumps({"contents": contents}))
         recipe_id = result['ref']
 
-        # Update the job to use this recipe
-        contents = {'recipe': recipe_id}
+        # Update the job to use this recipe and lock it to a ref
+        contents = {'recipe': 'private',
+                    'recipe_ref': recipe_id}
         result = client.call("/job/private.json",
                              input = json.dumps({"contents": contents}))
         job_ref = result['ref']
