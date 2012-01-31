@@ -50,6 +50,7 @@ urls = (
     '/build/create/(.+).json',     'CreateBuild',
     '/build/B([0-9a-f]{40}).json', 'GetUpdateBuild',
     '/slog',                       'AddLog',
+    '/recipes',                    'ListRecipes',
 )
 
 re_sha1 = re.compile('^([0-9a-f]{40})$')
@@ -175,7 +176,7 @@ class GetPutRecipe:
         return repo.get_object(sha).data
 
 
-def get_recipe_metadata(contents):
+def get_recipe_metadata_from_blob(contents):
     header = []
     for line in contents.splitlines():
         if line.startswith("#!/"):
@@ -186,19 +187,23 @@ def get_recipe_metadata(contents):
         header.append(line[1:])
 
     header = '\n'.join(header)
-    return yaml.load(header)
+    return yaml.load(header) or {}
+
+
+def get_recipe_metadata(repo, name_or_sha1):
+    ref = get_recipe_ref(repo, name_or_sha1)
+    commit = repo.get_object(ref)
+    tree = repo.get_object(commit.tree)
+    mode, sha = tree['build.py']
+    data = repo.get_object(sha).data
+    metadata = get_recipe_metadata_from_blob(data)
+    return metadata
 
 
 class GetPutMetadata:
     def GET(self, name):
         repo = get_repo(GIT_CONFIG)
-        ref = get_recipe_ref(repo, name)
-        commit = repo.get_object(ref)
-        tree = repo.get_object(commit.tree)
-        mode, sha = tree['build.py']
-        data = repo.get_object(sha).data
-        metadata = get_recipe_metadata(data)
-        return json.dumps(metadata)
+        return json.dumps(get_recipe_metadata(repo, name))
 
 
 def get_recipe_ref(repo, name):
@@ -354,6 +359,22 @@ class GetUpdateBuild:
         _, sha1 = tree['build.json']
         cur_obj = json.loads(repo.get_object(sha1).data)
         return jsonify(ref = cur_ref, build = cur_obj)
+
+
+class ListRecipes:
+    def GET(self):
+        repo = get_repo(GIT_CONFIG)
+        recipes = []
+        for name in repo.refs.keys():
+            if not name.startswith("refs/heads/recipes/"):
+                continue
+            metadata = get_recipe_metadata(repo, repo.refs[name])
+            info = {'id': name[19:],
+                    'description': metadata.get('Description', '')}
+            if metadata.get('Tags'):
+                info['tags'] = metadata['Tags']
+            recipes.append(info)
+        return jsonify(recipes = recipes)
 
 
 class AddLog:

@@ -4,6 +4,8 @@
 #    Builds android (several products and variants) and saves the
 #    resulting images as zip-files.
 #
+# Tags: [android, zipped]
+#
 # Parameters:
 #  BRANCH:
 #    description: Manifest branch
