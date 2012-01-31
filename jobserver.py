@@ -289,12 +289,16 @@ class GetPutJob:
 
 
 class CreateBuild:
-    def POST(self, name_or_sha1):
+    def POST(self, job_name):
         input = json.loads(web.data())
         # Verify that the job exists
         config = get_repo(GIT_CONFIG)
         builds = get_repo(GIT_BUILDS)
-        job, job_ref = get_job(config, name_or_sha1)
+
+        if 'job_ref' in input:
+            job, job_ref = get_job(config, input['job_ref'])
+        else:
+            job, job_ref = get_job(config, job_name)
 
         recipe_ref = job.get('recipe_ref')
         if not recipe_ref:
@@ -321,7 +325,7 @@ class CreateBuild:
                          state = STATE_STARTED,
                          created = email.utils.formatdate(localtime = True),
                          job_ref = job_ref,
-                         recipe = job['recipe'],
+                         recipe_name = job['recipe'],
                          recipe_ref = recipe_ref,
                          parameters = input.get("parameters", {}))
             commit = create_build_dir(builds, number, build, tree,
