@@ -7,7 +7,16 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import urlparse, httplib, json, urllib
+import urlparse, httplib, json, urllib, datetime, types
+
+
+class APIEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (datetime.datetime, datetime.date)):
+            return obj.ctime()
+        elif isinstance(obj, datetime.time):
+            return obj.isoformat()
+        return json.JSONEncoder.default(self, obj)
 
 
 class HttpClient(object):
@@ -27,6 +36,9 @@ class HttpRequest(object):
         if not method:
             method = "POST" if input else "GET"
         headers = {"Accept": "application/json, text/plain, */*"}
+        if type(input) is types.DictType:
+            headers['Content-type'] = 'application/json'
+            input = json.dumps(input, cls=APIEncoder)
         u = urlparse.urlparse(url + path)
         self.c = httplib.HTTPConnection(u.hostname, u.port)
         url = u.path
