@@ -105,15 +105,12 @@ class Bootstrap(object):
         build_info = HttpClient(jobserver).call('/build/%s.json' % build_id)
         build_info = build_info['build']
 
-        # Fetch the recipe
+        # Fetch the recipe and metadata
         recipe_ref = build_info['recipe_ref']
-        recipe = os.path.join(session.path, 'build.py')
-        Bootstrap.get_url(jobserver,
-                          '/recipe/%s.json' % recipe_ref,
-                          recipe)
-
-        # And the metadata, which we load.
-        metadata = HttpClient(jobserver).call('/metadata/%s.json' % recipe_ref)
+        recipe_fname = os.path.join(session.path, 'build.py')
+        recipe = HttpClient(jobserver).call('/recipe/%s.json' % recipe_ref)
+        with open(recipe_fname, 'w') as f:
+            f.write(recipe['contents'])
 
         # Fetch configs
         config = os.path.join(session.path, 'config.py')
@@ -123,12 +120,13 @@ class Bootstrap(object):
             env = Environment.deserialize(env)
         else:
             build_name = build_info['name']
-            env = Bootstrap.create_env(metadata, build_info['parameters'],
+            env = Bootstrap.create_env(recipe['metadata'],
+                                       build_info['parameters'],
                                        config, build_id, build_name)
 
         mod = imp.new_module('recipe')
-        mod.__file__ = recipe
-        execfile(recipe, mod.__dict__)
+        mod.__file__ = recipe_fname
+        execfile(recipe_fname, mod.__dict__)
 
         job = Bootstrap._find_job(mod)
         entrypoint = Bootstrap._find_entrypoint(job, entrypoint_name)

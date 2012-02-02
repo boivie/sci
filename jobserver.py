@@ -174,7 +174,10 @@ class GetPutRecipe:
         commit = repo.get_object(ref)
         tree = repo.get_object(commit.tree)
         mode, sha = tree['build.py']
-        return repo.get_object(sha).data
+        data = repo.get_object(sha).data
+        return jsonify(ref = ref,
+                       contents = data,
+                       metadata = get_recipe_metadata_from_blob(data))
 
 
 def get_recipe_metadata_from_blob(contents):
