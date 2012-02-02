@@ -40,7 +40,8 @@ urls = (
     '/available/N([0-9a-f]{40})', 'CheckInAvailable',
     '/busy/N([0-9a-f]{40})',      'CheckInBusy',
     '/dispatch',                  'DispatchBuild',
-    '/info',                      'GetInfo',
+    '/agents',                    'GetAgentsInfo',
+    '/queue',                     'GetQueueInfo',
     '/ping/N([0-9a-f]{40})',      'Ping',
     '/register',                  'Register',
     '/result/S([0-9a-f]{40})',    'GetDispatchedResult',
@@ -329,17 +330,9 @@ class GetDispatchedResult:
             time.sleep(0.5)
 
 
-class GetInfo:
+class GetAgentsInfo:
     def GET(self):
-        # Get queue
         db = conn()
-        queue = []
-        for did in db.zrange(KEY_QUEUE, 0, -1):
-            info = db.get(KEY_DISPATCH_INFO % did)
-            if info:
-                info = json.loads(info)
-                queue.append({"id": did,
-                              "labels": info["labels"]})
         all = []
         now = int(time.time())
         for agent_id in db.smembers(KEY_ALL):
@@ -354,9 +347,21 @@ class GetInfo:
                             "state": info["state"],
                             "seen": info["seen"],
                             "labels": info["labels"]})
-        return jsonify(queue = queue,
-                       agent_no = len(all),
+        return jsonify(agent_no = len(all),
                        agents = all)
+
+
+class GetQueueInfo:
+    def GET(self):
+        db = conn()
+        queue = []
+        for did in db.zrange(KEY_QUEUE, 0, -1):
+            info = db.get(KEY_DISPATCH_INFO % did)
+            if info:
+                info = json.loads(info)
+                queue.append({"id": did,
+                              "labels": info["labels"]})
+        return jsonify(queue = queue)
 
 
 if __name__ == "__main__":
