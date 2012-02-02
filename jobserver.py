@@ -9,14 +9,14 @@
     :license: Apache License 2.0
 """
 from optparse import OptionParser
-import web, json, os, re, yaml, stat
+import web, json, os, re, yaml, redis
 import email.utils
 from dulwich.repo import Repo
 from dulwich.objects import Blob, Tree, Commit, parse_timezone
 from time import time
+from sci.utils import random_sha1
 
 GIT_CONFIG = 'config.git'
-GIT_BUILDS = 'builds.git'
 
 STATE_STARTED = 'started'
 STATE_DONE = 'done'
@@ -25,9 +25,16 @@ STATE_ABORTED = 'aborted'
 
 AUTHOR = 'SCI <sci@example.com>'
 
+pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
+
+
+def conn():
+    r = redis.StrictRedis(connection_pool=pool)
+    return r
+
 
 def get_gits():
-    return [get_git(g) for g in [GIT_CONFIG, GIT_BUILDS]]
+    return [get_git(g) for g in [GIT_CONFIG]]
 
 
 def get_git(git):
@@ -48,7 +55,7 @@ urls = (
     '/config/(.+).txt',            'GetConfig',
     '/job/(.+).json',              'GetPutJob',
     '/build/create/(.+).json',     'CreateBuild',
-    '/build/B([0-9a-f]{40}).json', 'GetUpdateBuild',
+    '/build/B([0-9a-f]{40}).json',        'GetUpdateBuild',
     '/slog',                       'AddLog',
     '/recipes',                    'ListRecipes',
     '/jobs',                       'ListJobs',
@@ -96,42 +103,6 @@ def create_commit(repo, files = None, tree = None, parent = None,
     commit.message = message
 
     object_store.add_object(tree)
-    object_store.add_object(commit)
-    return commit
-
-
-def create_build_dir(repo, num, data, root, parent,
-                     author = AUTHOR, message = "No message given"):
-    object_store = repo.object_store
-    tree = Tree()
-    root = root or Tree()
-
-    blob = Blob.from_string(json.dumps(data))
-    object_store.add_object(blob)
-
-    tree.add(0100644, 'build.json', blob.id)
-    object_store.add_object(tree)
-
-    root.add(stat.S_IFDIR, str(num), tree.id)
-
-    blob = Blob.from_string(str(num))
-    object_store.add_object(blob)
-    root.add(0120000, 'current', blob.id)
-    object_store.add_object(root)
-
-    commit = Commit()
-    if parent:
-        commit.parents = [parent]
-    else:
-        commit.parents = []
-    commit.tree = root.id
-    commit.author = commit.committer = author
-    commit.commit_time = commit.author_time = int(time())
-    tz = parse_timezone('+0100')[0]
-    commit.commit_timezone = commit.author_timezone = tz
-    commit.encoding = "UTF-8"
-    commit.message = message
-
     object_store.add_object(commit)
     return commit
 
@@ -291,12 +262,16 @@ class GetPutJob:
         return jsonify(job = job, ref = ref)
 
 
+KEY_JOB_BUILD_NO = 'latest_build:%s'
+KEY_BUILD_INFO = 'build:%s:%d'
+KEY_BUILD_HASH = 'build-hash:%s'
+
+
 class CreateBuild:
     def POST(self, job_name):
         input = json.loads(web.data())
         # Verify that the job exists
         config = get_repo(GIT_CONFIG)
-        builds = get_repo(GIT_BUILDS)
 
         if 'job_ref' in input:
             job, job_ref = get_job(config, input['job_ref'])
@@ -307,70 +282,36 @@ class CreateBuild:
         if not recipe_ref:
             recipe_ref = get_recipe_ref(config, job['recipe'])
 
-        while True:
-            # Allocate a build number:
-            number = 1
-            tree = None
-            try:
-                cur_build_ref = builds.refs['refs/heads/%s' % job['name']]
-            except KeyError:
-                cur_build_ref = None
+        # Get a build number
+        db = conn()
+        number = db.incr(KEY_JOB_BUILD_NO % job_name)
 
-            if cur_build_ref:
-                c = builds.get_object(cur_build_ref)
-                tree = builds.get_object(c.tree)
-                mode, latest_sha1 = tree['current']  # a link
-                latest = builds.get_object(latest_sha1).data
-                number = int(latest) + 1
-            build = dict(job_name = job['name'],
-                         number = number,
-                         name = "%s-%d" % (job['name'], number),
-                         state = STATE_STARTED,
-                         created = email.utils.formatdate(localtime = True),
-                         job_ref = job_ref,
-                         recipe_name = job['recipe'],
-                         recipe_ref = recipe_ref,
-                         parameters = input.get("parameters", {}))
-            commit = create_build_dir(builds, number, build, tree,
-                                      cur_build_ref)
-            try:
-                ref = "refs/heads/%s" % job['name']
-                update_head(builds, ref, cur_build_ref, commit.id)
-                break
-            except CommitException:
-                pass  # re-iterate
-
-        build['id'] = 'B%s' % commit.id
+        build = dict(id = 'B%s' % random_sha1(),
+                     job_name = job['name'],
+                     number = number,
+                     name = "%s-%d" % (job['name'], number),
+                     state = STATE_STARTED,
+                     created = email.utils.formatdate(localtime = True),
+                     job_ref = job_ref,
+                     recipe_name = job['recipe'],
+                     recipe_ref = recipe_ref,
+                     parameters = input.get("parameters", {}))
+        db.set(KEY_BUILD_INFO % (job['name'], number), json.dumps(build))
+        db.set(KEY_BUILD_HASH % build['id'][1:], '%s:%s' % (job['name'], number))
         return jsonify(**build)
-
-
-def find_build(build_id):
-    """Build ID Ba0494bef22 -> private, 22"""
-    repo = get_repo(GIT_BUILDS)
-    commit = repo.get_object(build_id)
-    root = repo.get_object(commit.tree)
-    mode, sha1 = root['current']
-    number = repo.get_object(sha1).data
-    mode, tree_sha1 = root[str(number)]
-    tree = repo.get_object(tree_sha1)
-    mode, sha1 = tree['build.json']
-    create_obj = json.loads(repo.get_object(sha1).data)
-    return create_obj["job_name"], create_obj["number"]
 
 
 class GetUpdateBuild:
     def GET(self, build_id):
-        repo = get_repo(GIT_BUILDS)
-        job_name, number = find_build(build_id)
-
-        cur_ref = repo.refs['refs/heads/%s' % job_name]
-        commit = repo.get_object(cur_ref)
-        root = repo.get_object(commit.tree)
-        _, tree_sha1 = root[str(number)]
-        tree = repo.get_object(tree_sha1)
-        _, sha1 = tree['build.json']
-        cur_obj = json.loads(repo.get_object(sha1).data)
-        return jsonify(ref = cur_ref, build = cur_obj)
+        db = conn()
+        info = db.get(KEY_BUILD_HASH % build_id)
+        if info is None:
+            abort(404)
+        job_name, number = info.split(':')
+        number = int(number)
+        build = db.get(KEY_BUILD_INFO % (job_name, number))
+        build = json.loads(build)
+        return jsonify(build = build)
 
 
 class ListRecipes:
