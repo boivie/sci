@@ -19,6 +19,11 @@ class APIEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+class HttpError(Exception):
+    def __init__(self, code):
+        self.code = code
+
+
 class HttpClient(object):
     def __init__(self, url):
         self.url = url
@@ -47,7 +52,7 @@ class HttpRequest(object):
         self.c.request(method, url, input, headers)
         self.r = self.c.getresponse()
         if self.r.status != 200:
-            raise Exception("Failed")
+            raise HttpError(self.r.status)
 
     def read(self, n = None):
         if n is None:
