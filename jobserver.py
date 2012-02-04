@@ -53,9 +53,10 @@ urls = (
     '/metadata/(.+).json',         'GetPutMetadata',
     '/config/(.+).json',           'PutConfig',
     '/config/(.+).txt',            'GetConfig',
-    '/job/(.+).json',              'GetPutJob',
+    '/job/(.+)',                   'GetPutJob',
     '/build/create/(.+).json',     'CreateBuild',
-    '/build/B([0-9a-f]{40}).json',        'GetUpdateBuild',
+    '/build/B([0-9a-f]{40}).json', 'GetUpdateBuild',
+    '/build/(.+),([0-9]+)',        'GetBuild',
     '/slog',                       'AddLog',
     '/recipes',                    'ListRecipes',
     '/jobs',                       'ListJobs',
@@ -256,15 +257,36 @@ class GetPutJob:
                 if name != 'private':
                     abort(412, str(e))
 
-    def GET(self, name):
+    def GET(self, query):
+        db = conn()
+        results = {}
+        parts = query.split(',')
+        name = parts[0]
         repo = get_repo(GIT_CONFIG)
-        job, ref = get_job(repo, name)
-        return jsonify(job = job, ref = ref)
+        results['settings'], results['ref'] = get_job(repo, name)
+        results['stats'] = get_job_stats(db, name)
+
+        return jsonify(**results)
 
 
-KEY_JOB_BUILD_NO = 'latest_build:%s'
-KEY_BUILD_INFO = 'build:%s:%d'
+def get_ts():
+    return int(time())
+
+
+KEY_JOB_INFO = 'job-%s'
+KEY_BUILD_INFO = 'build-info:%s:%d'
 KEY_BUILD_HASH = 'build-hash:%s'
+
+DEFAULT_EMPTY_JOB = dict(latest = dict(no = 0, ts = 0),
+                         success = dict(no = 0, ts = 0))
+
+
+def get_job_stats(db, name):
+    info = db.get(KEY_JOB_INFO % name)
+    if info:
+        return json.loads(info)
+    else:
+        return DEFAULT_EMPTY_JOB
 
 
 class CreateBuild:
@@ -284,20 +306,36 @@ class CreateBuild:
 
         # Get a build number
         db = conn()
-        number = db.incr(KEY_JOB_BUILD_NO % job_name)
+        key = KEY_JOB_INFO % job_name
+        db.setnx(key, json.dumps(DEFAULT_EMPTY_JOB))
+        now = get_ts()
+        while True:
+            try:
+                with db.pipeline() as pipe:
+                    pipe.watch(key)
+                    info = json.loads(pipe.get(key))
+                    number = info['latest']['no'] + 1
+                    info['latest']['no'] = number
+                    info['latest']['ts'] = now
+                    pipe.multi()
+                    pipe.set(key, json.dumps(info))
+                    pipe.execute()
+                    break
+            except redis.WatchError:
+                continue
 
         build = dict(id = 'B%s' % random_sha1(),
                      job_name = job['name'],
                      number = number,
                      name = "%s-%d" % (job['name'], number),
                      state = STATE_STARTED,
-                     created = email.utils.formatdate(localtime = True),
+                     created = email.utils.formatdate(now, localtime = True),
                      job_ref = job_ref,
                      recipe_name = job['recipe'],
                      recipe_ref = recipe_ref,
                      parameters = input.get("parameters", {}))
-        db.set(KEY_BUILD_INFO % (job['name'], number), json.dumps(build))
-        db.set(KEY_BUILD_HASH % build['id'][1:], '%s:%s' % (job['name'], number))
+        db.set(KEY_BUILD_INFO % (job_name, number), json.dumps(build))
+        db.set(KEY_BUILD_HASH % build['id'][1:], '%s:%s' % (job_name, number))
         return jsonify(**build)
 
 
@@ -306,10 +344,21 @@ class GetUpdateBuild:
         db = conn()
         info = db.get(KEY_BUILD_HASH % build_id)
         if info is None:
-            abort(404)
+            abort(404, 'Not Found')
         job_name, number = info.split(':')
         number = int(number)
         build = db.get(KEY_BUILD_INFO % (job_name, number))
+        build = json.loads(build)
+        return jsonify(build = build)
+
+
+class GetBuild:
+    def GET(self, job_name, number):
+        db = conn()
+        number = int(number)
+        build = db.get(KEY_BUILD_INFO % (job_name, number))
+        if not build:
+            abort(404, 'Not Found')
         build = json.loads(build)
         return jsonify(build = build)
 
@@ -332,14 +381,18 @@ class ListRecipes:
 
 class ListJobs:
     def GET(self):
+        db = conn()
         repo = get_repo(GIT_CONFIG)
         jobs = []
         for name in repo.refs.keys():
             if not name.startswith("refs/heads/jobs/"):
                 continue
             job, job_ref = get_job(repo, repo.refs[name])
-            info = {'id': name[16:],
-                    'recipe': job['recipe']}
+            job_name = name[16:]
+            info = get_job_stats(db, job_name)
+
+            info['id'] = job_name
+            info['recipe'] = job['recipe']
             if 'recipe_ref' in job:
                 info['recipe_ref'] = job['recipe_ref']
             jobs.append(info)
