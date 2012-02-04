@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{name}} - Job{% endblock %}
+{% set active_page = "builds" %}
+
+{% set tab_bar = [
+    (',settings', 'settings', 'icon-cog', 'Job Settings'),
+    ('', 'latest', 'icon-repeat', 'Latest Build'),
+    (',success', 'success', 'icon-ok', 'Last Success'),
+    (',history', 'history', 'icon-time', 'Build History'),
+] -%}
+
+{% block content %}
+    <div class="row">
+      <div class="span12">
+	<a style="float: right" class="btn" href="{{edit_url}}"><i class="icon-edit"></i> Edit</a>
+	<h1>{{name}}</h1>
+      </div>
+    </div>
+    <div style="margin-top: 20px" class="row">
+      <div class="span12">
+	<ul class="nav nav-tabs">
+{%- for href, id, icon, caption in tab_bar %}
+	  <li{% if id == active_tab %} class="active"{% endif %}><a href="{{job_url}}{{href}}"><i class="{{icon}}"></i> {{caption}}</a></li>
+{%- endfor %}
+	</ul>
+      </div>
+    </div>
+{% block subcontents %}{% endblock %}
+{% endblock %}

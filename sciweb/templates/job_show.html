@@ -1,0 +1,9 @@
+{% extends "job_base.html" %}
+{% block subcontent %}
+    <div class="row">
+      <div class="span12">
+	Using recipe '{{job.settings.recipe}}'{% if job.settings.recipe_ref %},
+	locked on revision {{job.settings.recipe_ref|short_id}}{% endif %}
+      </div>
+    </div>
+{% endblock %}

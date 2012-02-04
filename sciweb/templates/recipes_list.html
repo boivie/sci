@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Index{% endblock %}
+{% set active_page = "recipes" %}
+{% block content %}
+    <h1>Recipes</h1>
+    <p class="lead">Recipes are building instructions that are used by jobs to create builds.</p>
+    <ul class="unstyled">
+{% for recipe in recipes %}
+      <li class="lrow">
+	<p class="ltitle"><a href="{{recipe.url}}">{{recipe.id}}</a></p>
+	<div>{{recipe.description}}</div>
+      </li>
+{% endfor %}
+    </ul>
+{% endblock %}

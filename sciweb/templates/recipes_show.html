@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Recipe - {{recipe_id}}{% endblock %}
+{% set active_page = "recipes" %}
+{% block content %}
+    <div class="row">
+      <div class="span12">
+	<a style="float: right" class="btn" href="{{edit_url}}"><i class="icon-edit"></i> Edit</a>
+	<h1>{{recipe_id}}</h1>
+      </div>
+    </div>
+    <div style="margin-top: 20px" class="row">
+      <div class="span12">
+	<pre class="prettyprint linenums">{{recipe.contents}}</pre>
+      </div>
+    </div>
+{% endblock %}

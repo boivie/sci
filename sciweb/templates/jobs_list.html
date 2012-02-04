@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Builds{% endblock %}
+{% set active_page = "builds" %}
+{% block content %}
+    <h1>Builds</h1>
+    <p class="lead">Builds and jobs.</p>
+    <ul class="unstyled">
+{% for job in jobs %}
+      <li class="lrow">
+	<p class="ltitle"><a href="{{job.url}}">{{job.id}}</a></p>
+	<div>Latest build (<a href="{{job.latest.url}}">{{job.id}}-{{job.latest.no}}</a>) started {{job.latest.ts|pretty_date}}</div>
+      </li>
+{% endfor %}
+    </ul>
+{% endblock %}

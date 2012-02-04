@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Agents{% endblock %}
+{% set active_page = "agents" %}
+{% block content %}
+    <h1>Agents</h1>
+    <p class="lead">Agents are the computers executing build actions</p>
+    <h3>Available agents</h3>
+    <ul class="unstyled">
+{% for agent in agents if agent.state == 'available' %}
+      <li class="lrow">
+	<p class="ltitle"><a href="{{agent.url}}">{{agent.nick}} ({{agent.id|short_id}})</a></p>
+	<div>Last seen {{agent.seen|pretty_date}}.</div>
+      </li>
+{% endfor %}
+    </ul>
+    <h3>The rest...</h3>
+    <ul class="unstyled">
+{% for agent in agents if agent.state != 'available' %}
+      <li class="lrow">
+	<p class="ltitle"><a href="{{agent.url}}">{{agent.nick|default('untitled')}} ({{agent.id|short_id}})</a></p>
+	<div>This agent is {{agent.state}}. Last seen {{agent.seen|pretty_date}}.</div>
+      </li>
+{% endfor %}
+    </ul>
+{% endblock %}
