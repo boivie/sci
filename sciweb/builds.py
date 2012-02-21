@@ -16,6 +16,8 @@ def edit(id):
 
 
 def show_settings(info, id):
+    info['settings']['recipe_url'] = url_for('recipes.show',
+                                             id = info['settings']['recipe_name'])
     return render_template('job_settings.html',
                            job_url = url_for('.show_job', id = id),
                            name = id,
@@ -28,11 +30,19 @@ def show_history(info, id):
 
 
 def show_build(info, id, build_no, active_tab):
+    if build_no != 0:
+        build_info = js().call('/build/%s,%d' % (id, build_no))['build']
+        build_info['job_url'] = url_for('.show_job', id = build_info['job_name'])
+        build_info['recipe_url'] = url_for('recipes.show', id = build_info['recipe_name'])
+    else:
+        build_info = {}
     return render_template('job_show.html',
                            job_url = url_for('.show_job', id = id),
                            name = id,
+                           build_no = build_no,
                            active_tab = active_tab,
-                           job = info)
+                           job = info,
+                           build = build_info)
 
 
 @app.route('/show/<id>', methods = ['GET'])

@@ -1,9 +1,26 @@
 {% extends "job_base.html" %}
-{% block subcontent %}
+{% block subcontents %}
+{% if build_no == 0 %}
     <div class="row">
       <div class="span12">
-	Using recipe '{{job.settings.recipe}}'{% if job.settings.recipe_ref %},
-	locked on revision {{job.settings.recipe_ref|short_id}}{% endif %}
+	No build matches this criteria.
       </div>
     </div>
+{% else %}
+    <div class="row">
+      <div class="span12">
+	<h2>{{build.job_name}}-{{build.number}}</h2>
+	<p>Started {{build.created}} from job <a href="{{build.job_url}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
+{% if build.parameters %}
+       <h3>Build Parameters</h3>
+       <dl>
+{% for param in build.parameters %}
+	 <dt>{{param}}</dt>
+	 <dd>{{build.parameters[param]}}</dd>
+{% endfor %}
+       </dl>
+{% endif %}
+      </div>
+    </div>
+{% endif %}
 {% endblock %}
