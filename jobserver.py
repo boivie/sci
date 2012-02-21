@@ -163,7 +163,7 @@ def get_recipe_metadata_from_blob(contents):
         header.append(line[1:])
 
     header = '\n'.join(header)
-    return yaml.load(header) or {}
+    return yaml.safe_load(header) or {}
 
 
 def get_recipe_metadata(repo, name_or_sha1):
@@ -227,8 +227,8 @@ def get_job(repo, name):
     else:
         commit = repo.get_object(repo.refs["refs/heads/jobs/%s" % name])
     tree = repo.get_object(commit.tree)
-    mode, sha = tree['job.json']
-    obj = json.loads(repo.get_object(sha).data)
+    mode, sha = tree['job.yaml']
+    obj = yaml.safe_load(repo.get_object(sha).data)
     return obj, commit.id
 
 
@@ -246,8 +246,8 @@ class GetPutJob:
                     old = repo.refs['refs/heads/jobs/private']
                 except KeyError:
                     old = None
-
-            commit = create_commit(repo, [('job.json', 0100644, json.dumps(job))],
+            contents = yaml.safe_dump(job, default_flow_style = False)
+            commit = create_commit(repo, [('job.yaml', 0100644, contents)],
                                    parent = old,
                                    message = "Updated Job")
             try:
