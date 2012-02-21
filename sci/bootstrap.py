@@ -119,7 +119,8 @@ class Bootstrap(object):
         if env:
             env = Environment.deserialize(env)
         else:
-            build_name = build_info['name']
+            build_name = "%s-%d" % (build_info['job_name'],
+                                    build_info['number'])
             env = Bootstrap.create_env(recipe['metadata'],
                                        build_info['parameters'],
                                        config, build_id, build_name)

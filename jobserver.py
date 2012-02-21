@@ -28,6 +28,10 @@ AUTHOR = 'SCI <sci@example.com>'
 pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
 
 
+def get_ts():
+    return int(time())
+
+
 def conn():
     r = redis.StrictRedis(connection_pool=pool)
     return r
@@ -97,7 +101,7 @@ def create_commit(repo, files = None, tree = None, parent = None,
         commit.parents = []
     commit.tree = tree.id
     commit.author = commit.committer = author
-    commit.commit_time = commit.author_time = int(time())
+    commit.commit_time = commit.author_time = get_ts()
     tz = parse_timezone('+0100')[0]
     commit.commit_timezone = commit.author_timezone = tz
     commit.encoding = "UTF-8"
@@ -134,7 +138,7 @@ class GetPutRecipe:
                                    [('build.py', 0100755, contents)],
                                    parent = ref)
             try:
-                update_head(repo, "refs/heads/recipes/%s" % name, ref, commit.id)
+                update_head(repo, 'refs/heads/recipes/%s' % name, ref, commit.id)
                 return jsonify(ref = commit.id)
             except CommitException:
                 if name != 'private':
@@ -155,7 +159,7 @@ class GetPutRecipe:
 def get_recipe_metadata_from_blob(contents):
     header = []
     for line in contents.splitlines():
-        if line.startswith("#!/"):
+        if line.startswith('#!/'):
             continue
         if not line or line[0] != '#':
             break
@@ -188,7 +192,7 @@ def get_recipe_ref(repo, name):
         c = repo.get_object(name)
         assert c.type_name == 'commit'
         return name
-    return repo.refs["refs/heads/recipes/%s" % name]
+    return repo.refs['refs/heads/recipes/%s' % name]
 
 
 class PutConfig:
@@ -202,9 +206,9 @@ class PutConfig:
                                author = author,
                                message = 'Updated config')
         try:
-            ref = "refs/heads/configs/%s" % ref
+            ref = 'refs/heads/configs/%s' % ref
             update_head(repo, ref, old_rev, commit.id)
-            return jsonify(status = "ok",
+            return jsonify(status = 'ok',
                            ref = commit.id)
         except CommitException as e:
             abort(412, str(e))
@@ -213,7 +217,7 @@ class PutConfig:
 class GetConfig:
     def GET(self, ref):
         repo = get_repo(GIT_CONFIG)
-        sha1 = repo.refs["refs/heads/configs/%s" % ref]
+        sha1 = repo.refs['refs/heads/configs/%s' % ref]
         commit = repo.get_object(sha1)
         tree = repo.get_object(commit.tree)
         mode, sha = tree['config.py']
@@ -225,7 +229,7 @@ def get_job(repo, name):
     if is_sha1(name):
         commit = repo.get_object(name)
     else:
-        commit = repo.get_object(repo.refs["refs/heads/jobs/%s" % name])
+        commit = repo.get_object(repo.refs['refs/heads/jobs/%s' % name])
     tree = repo.get_object(commit.tree)
     mode, sha = tree['job.yaml']
     obj = yaml.safe_load(repo.get_object(sha).data)
@@ -267,10 +271,6 @@ class GetPutJob:
         results['stats'] = get_job_stats(db, name)
 
         return jsonify(**results)
-
-
-def get_ts():
-    return int(time())
 
 
 KEY_JOB_INFO = 'job-%s'
@@ -326,14 +326,13 @@ class CreateBuild:
 
         build = dict(id = 'B%s' % random_sha1(),
                      job_name = job['name'],
-                     number = number,
-                     name = "%s-%d" % (job['name'], number),
-                     state = STATE_STARTED,
-                     created = email.utils.formatdate(now, localtime = True),
                      job_ref = job_ref,
                      recipe_name = job['recipe'],
                      recipe_ref = recipe_ref,
-                     parameters = input.get("parameters", {}))
+                     number = number,
+                     state = STATE_STARTED,
+                     created = email.utils.formatdate(now, localtime = True),
+                     parameters = input.get('parameters', {}))
         db.set(KEY_BUILD_INFO % (job_name, number), json.dumps(build))
         db.set(KEY_BUILD_HASH % build['id'][1:], '%s:%s' % (job_name, number))
         return jsonify(**build)
@@ -368,7 +367,7 @@ class ListRecipes:
         repo = get_repo(GIT_CONFIG)
         recipes = []
         for name in repo.refs.keys():
-            if not name.startswith("refs/heads/recipes/"):
+            if not name.startswith('refs/heads/recipes/'):
                 continue
             metadata = get_recipe_metadata(repo, repo.refs[name])
             info = {'id': name[19:],
@@ -385,7 +384,7 @@ class ListJobs:
         repo = get_repo(GIT_CONFIG)
         jobs = []
         for name in repo.refs.keys():
-            if not name.startswith("refs/heads/jobs/"):
+            if not name.startswith('refs/heads/jobs/'):
                 continue
             job, job_ref = get_job(repo, repo.refs[name])
             job_name = name[16:]
