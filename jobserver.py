@@ -302,7 +302,7 @@ class CreateBuild:
 
         recipe_ref = job.get('recipe_ref')
         if not recipe_ref:
-            recipe_ref = get_recipe_ref(config, job['recipe'])
+            recipe_ref = get_recipe_ref(config, job['recipe_name'])
 
         # Get a build number
         db = conn()
@@ -327,7 +327,7 @@ class CreateBuild:
         build = dict(id = 'B%s' % random_sha1(),
                      job_name = job['name'],
                      job_ref = job_ref,
-                     recipe_name = job['recipe'],
+                     recipe_name = job['recipe_name'],
                      recipe_ref = recipe_ref,
                      number = number,
                      state = STATE_STARTED,
@@ -391,7 +391,7 @@ class ListJobs:
             info = get_job_stats(db, job_name)
 
             info['id'] = job_name
-            info['recipe'] = job['recipe']
+            info['recipe_name'] = job['recipe_name']
             if 'recipe_ref' in job:
                 info['recipe_ref'] = job['recipe_ref']
             jobs.append(info)
