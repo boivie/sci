@@ -52,6 +52,11 @@ def get_repo(git):
 class CommitException(Exception):
     pass
 
+
+class NoChangesException(CommitException):
+    pass
+
+
 urls = (
     '/recipe/(.+).json',           'GetPutRecipe',
     '/metadata/(.+).json',         'GetPutMetadata',
@@ -99,6 +104,11 @@ def create_commit(repo, files = None, tree = None, parent = None,
         commit.parents = [parent]
     else:
         commit.parents = []
+    # Check that we have really updated the tree
+    if parent:
+        parent_commit = repo.get_object(parent)
+        if parent_commit.tree == tree.id:
+            raise NoChangesException()
     commit.tree = tree.id
     commit.author = commit.committer = author
     commit.commit_time = commit.author_time = get_ts()
@@ -134,9 +144,13 @@ class GetPutRecipe:
                 except KeyError:
                     ref = None
 
-            commit = create_commit(repo,
-                                   [('build.py', 0100755, contents)],
-                                   parent = ref)
+            try:
+                commit = create_commit(repo,
+                                       [('build.py', 0100755, contents)],
+                                       parent = ref)
+            except NoChangesException:
+                return jsonify(ref = ref)
+
             try:
                 update_head(repo, 'refs/heads/recipes/%s' % name, ref, commit.id)
                 return jsonify(ref = commit.id)
@@ -251,9 +265,13 @@ class GetPutJob:
                 except KeyError:
                     old = None
             contents = yaml.safe_dump(job, default_flow_style = False)
-            commit = create_commit(repo, [('job.yaml', 0100644, contents)],
-                                   parent = old,
-                                   message = "Updated Job")
+            try:
+                commit = create_commit(repo, [('job.yaml', 0100644, contents)],
+                                       parent = old,
+                                       message = "Updated Job")
+            except NoChangesException:
+                return jsonify(ref = old)
+
             try:
                 update_head(repo, 'refs/heads/jobs/%s' % name, old, commit.id)
                 return jsonify(ref = commit.id)
