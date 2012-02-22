@@ -64,8 +64,12 @@ urls = (
     '/config/(.+).txt',            'GetConfig',
     '/job/(.+)',                   'GetPutJob',
     '/build/create/(.+).json',     'CreateBuild',
+
+    # If the build ID is specified, we allow it to be updated
     '/build/B([0-9a-f]{40}).json', 'GetUpdateBuild',
+    # If only the name+number is specified, read-only access
     '/build/(.+),([0-9]+)',        'GetBuild',
+
     '/slog',                       'AddLog',
     '/recipes',                    'ListRecipes',
     '/jobs',                       'ListJobs',
@@ -292,8 +296,8 @@ class GetPutJob:
 
 
 KEY_JOB_INFO = 'job-%s'
-KEY_BUILD_INFO = 'build-info:%s:%d'
-KEY_BUILD_HASH = 'build-hash:%s'
+KEY_BUILD_INFO = 'build-info:%s'
+KEY_BUILD_ID = 'build-hash:%s:%d'
 
 DEFAULT_EMPTY_JOB = dict(latest = dict(no = 0, ts = 0),
                          success = dict(no = 0, ts = 0))
@@ -342,8 +346,8 @@ class CreateBuild:
             except redis.WatchError:
                 continue
 
-        build = dict(id = 'B%s' % random_sha1(),
-                     job_name = job['name'],
+        build_id = 'B%s' % random_sha1()
+        build = dict(job_name = job['name'],
                      job_ref = job_ref,
                      recipe_name = job['recipe_name'],
                      recipe_ref = recipe_ref,
@@ -351,20 +355,17 @@ class CreateBuild:
                      state = STATE_STARTED,
                      created = email.utils.formatdate(now, localtime = True),
                      parameters = input.get('parameters', {}))
-        db.set(KEY_BUILD_INFO % (job_name, number), json.dumps(build))
-        db.set(KEY_BUILD_HASH % build['id'][1:], '%s:%s' % (job_name, number))
-        return jsonify(**build)
+        db.set(KEY_BUILD_INFO % build_id[1:], json.dumps(build))
+        db.set(KEY_BUILD_ID % (job_name, number), build_id)
+        return jsonify(id = build_id, **build)
 
 
 class GetUpdateBuild:
     def GET(self, build_id):
         db = conn()
-        info = db.get(KEY_BUILD_HASH % build_id)
-        if info is None:
-            abort(404, 'Not Found')
-        job_name, number = info.split(':')
-        number = int(number)
-        build = db.get(KEY_BUILD_INFO % (job_name, number))
+        build = db.get(KEY_BUILD_INFO % build_id)
+        if not build:
+            abort(404, 'Invalid Build ID')
         build = json.loads(build)
         return jsonify(build = build)
 
@@ -373,7 +374,10 @@ class GetBuild:
     def GET(self, job_name, number):
         db = conn()
         number = int(number)
-        build = db.get(KEY_BUILD_INFO % (job_name, number))
+        build_id = db.get(KEY_BUILD_ID % (job_name, number))
+        if build_id is None:
+            abort(404, 'Not Found')
+        build = db.get(KEY_BUILD_INFO % build_id)
         if not build:
             abort(404, 'Not Found')
         build = json.loads(build)
