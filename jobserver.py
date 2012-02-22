@@ -290,25 +290,14 @@ class GetPutJob:
         name = parts[0]
         repo = get_repo(GIT_CONFIG)
         results['settings'], results['ref'] = get_job(repo, name)
-        results['stats'] = get_job_stats(db, name)
+        results['stats'] = db.hgetall(KEY_JOB % name)
 
         return jsonify(**results)
 
 
-KEY_JOB_INFO = 'job-%s'
-KEY_BUILD_INFO = 'build-info:%s'
+KEY_JOB = 'job:%s'
+KEY_BUILD = 'build:%s'
 KEY_BUILD_ID = 'build-hash:%s:%d'
-
-DEFAULT_EMPTY_JOB = dict(latest = dict(no = 0, ts = 0),
-                         success = dict(no = 0, ts = 0))
-
-
-def get_job_stats(db, name):
-    info = db.get(KEY_JOB_INFO % name)
-    if info:
-        return json.loads(info)
-    else:
-        return DEFAULT_EMPTY_JOB
 
 
 class CreateBuild:
@@ -328,23 +317,9 @@ class CreateBuild:
 
         # Get a build number
         db = conn()
-        key = KEY_JOB_INFO % job_name
-        db.setnx(key, json.dumps(DEFAULT_EMPTY_JOB))
         now = get_ts()
-        while True:
-            try:
-                with db.pipeline() as pipe:
-                    pipe.watch(key)
-                    info = json.loads(pipe.get(key))
-                    number = info['latest']['no'] + 1
-                    info['latest']['no'] = number
-                    info['latest']['ts'] = now
-                    pipe.multi()
-                    pipe.set(key, json.dumps(info))
-                    pipe.execute()
-                    break
-            except redis.WatchError:
-                continue
+        number = db.hincrby(KEY_JOB % job_name, 'latest_no', 1)
+        db.hset(KEY_JOB % job_name, 'latest_ts', now)
 
         build_id = 'B%s' % random_sha1()
         build = dict(job_name = job['name'],
@@ -353,9 +328,10 @@ class CreateBuild:
                      recipe_ref = recipe_ref,
                      number = number,
                      state = STATE_STARTED,
-                     created = email.utils.formatdate(now, localtime = True),
-                     parameters = input.get('parameters', {}))
-        db.set(KEY_BUILD_INFO % build_id[1:], json.dumps(build))
+                     created = now,
+                     parameters = json.dumps(input.get('parameters', {})))
+
+        db.hmset(KEY_BUILD % build_id[1:], build)
         db.set(KEY_BUILD_ID % (job_name, number), build_id)
         return jsonify(id = build_id, **build)
 
@@ -363,10 +339,11 @@ class CreateBuild:
 class GetUpdateBuild:
     def GET(self, build_id):
         db = conn()
-        build = db.get(KEY_BUILD_INFO % build_id)
+        build = db.hgetall(KEY_BUILD % build_id)
         if not build:
             abort(404, 'Invalid Build ID')
-        build = json.loads(build)
+        build['number'] = int(build['number'])
+        build['parameters'] = json.loads(build['parameters'])
         return jsonify(build = build)
 
 
@@ -377,11 +354,7 @@ class GetBuild:
         build_id = db.get(KEY_BUILD_ID % (job_name, number))
         if build_id is None:
             abort(404, 'Not Found')
-        build = db.get(KEY_BUILD_INFO % build_id)
-        if not build:
-            abort(404, 'Not Found')
-        build = json.loads(build)
-        return jsonify(build = build)
+        return GetUpdateBuild().GET(build_id)
 
 
 class ListRecipes:
@@ -410,8 +383,8 @@ class ListJobs:
                 continue
             job, job_ref = get_job(repo, repo.refs[name])
             job_name = name[16:]
-            info = get_job_stats(db, job_name)
 
+            info = db.hgetall(KEY_JOB % job_name)
             info['id'] = job_name
             info['recipe_name'] = job['recipe_name']
             if 'recipe_ref' in job:
