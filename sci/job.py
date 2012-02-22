@@ -204,7 +204,7 @@ class Job(object):
         build_info = client.call('/build/create/private.json',
                                  input = json.dumps({'job_ref': job_ref,
                                                      'parameters': params}))
-        session = Session.create()
+        session = Session.create(build_info['session_id'][1:])
 
         return Bootstrap.run(session, build_id = build_info['id'],
                              jobserver = self.jobserver)

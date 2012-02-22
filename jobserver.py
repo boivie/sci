@@ -329,6 +329,7 @@ class CreateBuild:
                      number = number,
                      state = STATE_STARTED,
                      created = now,
+                     session_id = 'S%s' % random_sha1(),
                      parameters = json.dumps(input.get('parameters', {})))
 
         db.hmset(KEY_BUILD % build_id[1:], build)

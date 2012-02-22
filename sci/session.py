@@ -12,14 +12,13 @@
     :license: Apache License 2.0
 """
 import time, os, json
-from .utils import random_sha1
 
 
 class Session(object):
     root_path = "."
 
-    def __init__(self, id = None):
-        self.id = id if id else random_sha1()
+    def __init__(self, id):
+        self.id = id
         self.path = self.__path(self.id)
         self.logfile = os.path.join(self.path, "output.log")
         self.workspace = os.path.join(self.path, "workspace")
@@ -35,7 +34,7 @@ class Session(object):
             f.write(json.dumps(d))
 
     @classmethod
-    def create(cls, id = None):
+    def create(cls, id):
         s = Session(id)
         os.makedirs(s.workspace)
         s.save()
@@ -45,7 +44,7 @@ class Session(object):
     def load(cls, id):
         with open(os.path.join(cls.__path(id), "config.json"), "r") as f:
             d = json.loads(f.read())
-            s = Session()
+            s = Session(d['id'])
             for key in d:
                 setattr(s, key, d[key])
             return s
