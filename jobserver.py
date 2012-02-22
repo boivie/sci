@@ -10,14 +10,15 @@
 """
 from optparse import OptionParser
 import web, json, os, re, yaml, redis
-import email.utils
 from dulwich.repo import Repo
 from dulwich.objects import Blob, Tree, Commit, parse_timezone
 from time import time
 from sci.utils import random_sha1
+from sci.slog import JobBegun, JobDone, JobErrorThrown
 
 GIT_CONFIG = 'config.git'
 
+STATE_CREATED = 'created'
 STATE_STARTED = 'started'
 STATE_DONE = 'done'
 STATE_FAILED = 'failed'
@@ -70,7 +71,7 @@ urls = (
     # If only the name+number is specified, read-only access
     '/build/(.+),([0-9]+)',        'GetBuild',
 
-    '/slog',                       'AddLog',
+    '/slog/B([0-9a-f]{40})/S([0-9a-f]{40})',  'AddLog',
     '/recipes',                    'ListRecipes',
     '/jobs',                       'ListJobs',
 )
@@ -291,7 +292,7 @@ class GetPutJob:
         repo = get_repo(GIT_CONFIG)
         results['settings'], results['ref'] = get_job(repo, name)
         results['stats'] = db.hgetall(KEY_JOB % name)
-
+        results['stats']['latest_no'] = int(results['stats']['latest_no'])
         return jsonify(**results)
 
 
@@ -327,7 +328,7 @@ class CreateBuild:
                      recipe_name = job['recipe_name'],
                      recipe_ref = recipe_ref,
                      number = number,
-                     state = STATE_STARTED,
+                     state = STATE_CREATED,
                      created = now,
                      session_id = 'S%s' % random_sha1(),
                      parameters = json.dumps(input.get('parameters', {})))
@@ -337,14 +338,20 @@ class CreateBuild:
         return jsonify(id = build_id, **build)
 
 
-class GetUpdateBuild:
-    def GET(self, build_id):
-        db = conn()
+def get_build_info(db, build_id):
         build = db.hgetall(KEY_BUILD % build_id)
         if not build:
-            abort(404, 'Invalid Build ID')
+            return None
         build['number'] = int(build['number'])
         build['parameters'] = json.loads(build['parameters'])
+        return build
+
+
+class GetUpdateBuild:
+    def GET(self, build_id):
+        build = get_build_info(conn(), build_id)
+        if not build:
+            abort(404, 'Invalid Build ID')
         return jsonify(build = build)
 
 
@@ -355,7 +362,18 @@ class GetBuild:
         build_id = db.get(KEY_BUILD_ID % (job_name, number))
         if build_id is None:
             abort(404, 'Not Found')
-        return GetUpdateBuild().GET(build_id)
+        build_id = build_id[1:]
+        build = get_build_info(db, build_id)
+        if not build:
+            abort(404, 'Invalid Build ID')
+
+        log = {}
+        sessions = db.smembers(KEY_BUILD_SESSIONS % build_id)
+        for session_id in sessions:
+            log[session_id] = db.lrange(KEY_SLOG % (build_id, session_id),
+                                        0, 1000)
+        return jsonify(build = build,
+                       log = log)
 
 
 class ListRecipes:
@@ -394,9 +412,44 @@ class ListJobs:
         return jsonify(jobs = jobs)
 
 
+KEY_BUILD_SESSIONS = 'build-sessions:%s'
+KEY_SLOG = 'build-slog:%s:%s'
+
+
+def DoJobDone(db, build_id, li):
+    db.hset(KEY_BUILD % build_id, 'state', STATE_DONE)
+
+
+def DoJobErrorThrown(db, build_id, li):
+    db.hset(KEY_BUILD % build_id, 'state', STATE_FAILED)
+
+
+def DoJobBegun(db, build_id, li):
+    db.hset(KEY_BUILD % build_id, 'state', STATE_STARTED)
+
+
+SLOG_HANDLERS = {JobBegun.type: DoJobBegun,
+                 JobDone.type: DoJobDone,
+                 JobErrorThrown.type: DoJobErrorThrown}
+
+
 class AddLog:
-    def POST(self):
-        print(web.data())
+    def POST(self, build_id, session_id):
+        # Verify that the build id exists.
+        db = conn()
+        if not db.exists(KEY_BUILD % build_id):
+            abort(404, 'Invalid Build ID')
+        db.sadd(KEY_BUILD_SESSIONS % build_id, session_id)
+        data = web.data()
+        db.rpush(KEY_SLOG % (build_id, session_id), data)
+        li = json.loads(data)
+        try:
+            handler = SLOG_HANDLERS[li['type']]
+        except KeyError:
+            pass
+        else:
+            handler(db, build_id, li)
+
         return jsonify()
 
 

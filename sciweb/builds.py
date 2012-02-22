@@ -31,7 +31,8 @@ def show_history(info, id):
 
 def show_build(info, id, build_no, active_tab):
     if build_no != 0:
-        build_info = js().call('/build/%s,%d' % (id, build_no))['build']
+        info = js().call('/build/%s,%d' % (id, build_no))
+        build_info = info['build']
         build_info['job_url'] = url_for('.show_job', id = build_info['job_name'])
         build_info['recipe_url'] = url_for('recipes.show', id = build_info['recipe_name'])
     else:
@@ -42,7 +43,8 @@ def show_build(info, id, build_no, active_tab):
                            build_no = build_no,
                            active_tab = active_tab,
                            job = info,
-                           build = build_info)
+                           build = build_info,
+                           log = info.get('log', {}))
 
 
 @app.route('/show/<id>', methods = ['GET'])
@@ -55,9 +57,9 @@ def show_job(id):
     if show == 'settings':
         return show_settings(info, id)
     if show == 'latest':
-        return show_build(info, id, info['stats']['latest']['no'], 'latest')
+        return show_build(info, id, info['stats'].get('latest_no', 0), 'latest')
     elif show == 'success':
-        return show_build(info, id, info['stats']['success']['no'], 'success')
+        return show_build(info, id, info['stats'].get('success_no', 0), 'success')
     elif show == 'history':
         return show_history(info, id)
     else:

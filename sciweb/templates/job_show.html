@@ -10,7 +10,10 @@
     <div class="row">
       <div class="span12">
 	<h2>{{build.job_name}}-{{build.number}}</h2>
-	<p>Started {{build.created}} from job <a href="{{build.job_url}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
+	<p>Started {{build.created|pretty_date}} from job <a href="{{build.job_url}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
+{% if build.state == 'done' %}
+	<p>This build finished successfully.</p>
+{% endif %}
 {% if build.parameters %}
        <h3>Build Parameters</h3>
        <dl>
@@ -20,6 +23,12 @@
 {% endfor %}
        </dl>
 {% endif %}
+       <h3>Log</h3>
+       <ul>
+{% for entry in log[build.session_id[1:]] %}
+<li>{{entry}}</li>
+{% endfor %}
+       </ul>
       </div>
     </div>
 {% endif %}

@@ -16,10 +16,8 @@ class LogItem(object):
     def __init__(self):
         self.params = {}
 
-    def serialize(self, build_id, session_id):
-        d = dict(type = self.type,
-                 build_id = build_id,
-                 session_id = session_id)
+    def serialize(self):
+        d = dict(type = self.type)
         if self.params:
             d['params'] = self.params
         return json.dumps(d)

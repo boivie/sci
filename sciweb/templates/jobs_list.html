@@ -8,7 +8,7 @@
 {% for job in jobs %}
       <li class="lrow">
 	<p class="ltitle"><a href="{{job.url}}">{{job.id}}</a></p>
-	<div>Latest build (<a href="{{job.latest.url}}">{{job.id}}-{{job.latest.no}}</a>) started {{job.latest.ts|pretty_date}}</div>
+	<div>Latest build (<a href="{{job.latest_url}}">{{job.id}}-{{job.latest_no}}</a>) started {{job.latest_ts|pretty_date}}</div>
       </li>
 {% endfor %}
     </ul>
