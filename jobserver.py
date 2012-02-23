@@ -15,6 +15,7 @@ from dulwich.objects import Blob, Tree, Commit, parse_timezone
 from time import time
 from sci.utils import random_sha1
 from sci.slog import JobBegun, JobDone, JobErrorThrown
+from sci.queue import StartBuildQ
 
 GIT_CONFIG = 'config.git'
 
@@ -305,24 +306,6 @@ KEY_BUILD_ID = 'build-hash:%s:%d'
 KEY_QUEUE = 'js:queue'
 
 
-class QueueItem(object):
-    def __init__(self):
-        self.params = {}
-
-    def serialize(self):
-        d = dict(type = self.type)
-        if self.params:
-            d['params'] = self.params
-        return json.dumps(d)
-
-
-class StartBuildQ(QueueItem):
-    type = 'start-build'
-
-    def __init__(self, build_id):
-        self.params = dict(build_id = build_id)
-
-
 def queue(db, item, front = False):
     if front:
         db.lpush(KEY_QUEUE, item.serialize())
@@ -384,7 +367,7 @@ class StartBuild:
                                     input.get('parameters', {}),
                                     state = STATE_QUEUED)
 
-        queue(db, StartBuildQ(build_id))
+        queue(db, StartBuildQ(build_id, build['session_id']))
         return jsonify(id = build_id, **build)
 
 

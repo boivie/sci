@@ -275,8 +275,11 @@ def dispatch(input):
     labels = input['labels']
     labels.remove("any")
 
-    session_id = random_sha1()
-    input['session_id'] = session_id
+    if input.get('session_id'):
+        session_id = input['session_id']
+    else:
+        session_id = random_sha1()
+        input['session_id'] = session_id
 
     db = conn()
     alloc_key = KEY_ALLOCATION % random_sha1()
