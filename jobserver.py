@@ -18,8 +18,10 @@ from sci.slog import JobBegun, JobDone, JobErrorThrown
 
 GIT_CONFIG = 'config.git'
 
-STATE_CREATED = 'created'
-STATE_STARTED = 'started'
+STATE_PREPARED = 'prepared'
+STATE_QUEUED = 'queued'
+STATE_DISPATCHED = 'dispatched'
+STATE_RUNNING = 'running'
 STATE_DONE = 'done'
 STATE_FAILED = 'failed'
 STATE_ABORTED = 'aborted'
@@ -65,6 +67,7 @@ urls = (
     '/config/(.+).txt',            'GetConfig',
     '/job/(.+)',                   'GetPutJob',
     '/build/create/(.+).json',     'CreateBuild',
+    '/build/start/(.+)',           'StartBuild',
 
     # If the build ID is specified, we allow it to be updated
     '/build/B([0-9a-f]{40}).json', 'GetUpdateBuild',
@@ -244,9 +247,9 @@ class GetConfig:
         return b.data
 
 
-def get_job(repo, name):
-    if is_sha1(name):
-        commit = repo.get_object(name)
+def get_job(repo, name, ref = None):
+    if ref:
+        commit = repo.get_object(ref)
     else:
         commit = repo.get_object(repo.refs['refs/heads/jobs/%s' % name])
     tree = repo.get_object(commit.tree)
@@ -299,42 +302,89 @@ class GetPutJob:
 KEY_JOB = 'job:%s'
 KEY_BUILD = 'build:%s'
 KEY_BUILD_ID = 'build-hash:%s:%d'
+KEY_QUEUE = 'js:queue'
+
+
+class QueueItem(object):
+    def __init__(self):
+        self.params = {}
+
+    def serialize(self):
+        d = dict(type = self.type)
+        if self.params:
+            d['params'] = self.params
+        return json.dumps(d)
+
+
+class StartBuildQ(QueueItem):
+    type = 'start-build'
+
+    def __init__(self, build_id):
+        self.params = dict(build_id = build_id)
+
+
+def queue(db, item, front = False):
+    if front:
+        db.lpush(KEY_QUEUE, item.serialize())
+    else:
+        db.rpush(KEY_QUEUE, item.serialize())
+
+
+def new_build(db, job, job_ref, parameters = {},
+              state = STATE_PREPARED):
+    config = get_repo(GIT_CONFIG)
+    recipe_ref = job.get('recipe_ref')
+    if not recipe_ref:
+        recipe_ref = get_recipe_ref(config, job['recipe_name'])
+
+    # Get a build number
+    now = get_ts()
+    number = db.hincrby(KEY_JOB % job['name'], 'latest_no', 1)
+    db.hset(KEY_JOB % job['name'], 'latest_ts', now)
+
+    build_id = 'B%s' % random_sha1()
+    build = dict(job_name = job['name'],
+                 job_ref = job_ref,
+                 recipe_name = job['recipe_name'],
+                 recipe_ref = recipe_ref,
+                 number = number,
+                 state = state,
+                 created = now,
+                 session_id = 'S%s' % random_sha1(),
+                 parameters = json.dumps(parameters))
+
+    db.hmset(KEY_BUILD % build_id[1:], build)
+    db.set(KEY_BUILD_ID % (job['name'], number), build_id)
+    return build_id, build
 
 
 class CreateBuild:
     def POST(self, job_name):
-        input = json.loads(web.data())
-        # Verify that the job exists
-        config = get_repo(GIT_CONFIG)
-
-        if 'job_ref' in input:
-            job, job_ref = get_job(config, input['job_ref'])
-        else:
-            job, job_ref = get_job(config, job_name)
-
-        recipe_ref = job.get('recipe_ref')
-        if not recipe_ref:
-            recipe_ref = get_recipe_ref(config, job['recipe_name'])
-
-        # Get a build number
         db = conn()
-        now = get_ts()
-        number = db.hincrby(KEY_JOB % job_name, 'latest_no', 1)
-        db.hset(KEY_JOB % job_name, 'latest_ts', now)
+        config = get_repo(GIT_CONFIG)
+        data = web.data()
+        input = json.loads(data) if data else {}
 
-        build_id = 'B%s' % random_sha1()
-        build = dict(job_name = job['name'],
-                     job_ref = job_ref,
-                     recipe_name = job['recipe_name'],
-                     recipe_ref = recipe_ref,
-                     number = number,
-                     state = STATE_CREATED,
-                     created = now,
-                     session_id = 'S%s' % random_sha1(),
-                     parameters = json.dumps(input.get('parameters', {})))
+        job, job_ref = get_job(config, job_name, input.get('job_ref'))
+        build_id, build = new_build(db, job, job_ref,
+                                    input.get('parameters', {}))
 
-        db.hmset(KEY_BUILD % build_id[1:], build)
-        db.set(KEY_BUILD_ID % (job_name, number), build_id)
+        return jsonify(id = build_id, **build)
+
+
+class StartBuild:
+    def POST(self, job_name):
+        db = conn()
+        config = get_repo(GIT_CONFIG)
+        data = web.data()
+        input = json.loads(data) if data else {}
+
+        job, job_ref = get_job(config, job_name, input.get('job_ref'))
+        build_id, build = new_build(db, job, job_ref,
+                                    input.get('parameters', {}),
+                                    state = STATE_QUEUED)
+
+        queue(db, StartBuildQ(build_id))
         return jsonify(id = build_id, **build)
 
 
@@ -400,8 +450,8 @@ class ListJobs:
         for name in repo.refs.keys():
             if not name.startswith('refs/heads/jobs/'):
                 continue
-            job, job_ref = get_job(repo, repo.refs[name])
             job_name = name[16:]
+            job, job_ref = get_job(repo, job_name, repo.refs[name])
 
             info = db.hgetall(KEY_JOB % job_name)
             info['id'] = job_name
@@ -425,7 +475,7 @@ def DoJobErrorThrown(db, build_id, li):
 
 
 def DoJobBegun(db, build_id, li):
-    db.hset(KEY_BUILD % build_id, 'state', STATE_STARTED)
+    db.hset(KEY_BUILD % build_id, 'state', STATE_RUNNING)
 
 
 SLOG_HANDLERS = {JobBegun.type: DoJobBegun,
