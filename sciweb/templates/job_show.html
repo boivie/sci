@@ -12,7 +12,9 @@
 	<h2>{{build.job_name}}-{{build.number}}</h2>
 	<p>Started {{build.created|pretty_date}} from job <a href="{{build.job_url}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
 {% if build.state == 'done' %}
-	<p>This build finished successfully.</p>
+	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
+{% elif build.state == 'failed' %}
+	<div class="alert alert-error">This build finished with errors.</div>
 {% endif %}
 {% if build.parameters %}
        <h3>Build Parameters</h3>
