@@ -16,7 +16,7 @@ from .session import Session
 from .bootstrap import Bootstrap
 from .http_client import HttpClient
 from .slog import (StepBegun, StepFunDone, StepJoined, JobBegun, JobDone,
-                   JobErrorThrown)
+                   JobErrorThrown, SetDescription)
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -85,6 +85,7 @@ class Job(object):
 
     def set_description(self, description):
         self._description = self.format(description)
+        self.slog(SetDescription(self._description))
 
     def get_description(self):
         return self._description

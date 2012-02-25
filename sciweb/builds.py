@@ -26,7 +26,11 @@ def show_settings(info, id):
 
 
 def show_history(info, id):
-    return "HISTORY"
+    return render_template('job_history.html',
+                           job_url = url_for('.show_job', id = id),
+                           job = info,
+                           active_tab = 'history',
+                           name = id)
 
 
 def show_build(info, id, build_no, active_tab):

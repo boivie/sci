@@ -71,3 +71,10 @@ class JobErrorThrown(LogItem):
 
     def __init__(self, what):
         self.params = dict(what = what)
+
+
+class SetDescription(LogItem):
+    type = 'set-description'
+
+    def __init__(self, description):
+        self.params = dict(description = description)

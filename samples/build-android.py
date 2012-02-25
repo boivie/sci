@@ -58,7 +58,7 @@ def default_build_id_prefix():
 
 @job.step("Create Build ID")
 def create_build_id():
-    build_id = job.env['BUILD_ID_PREFIX'] + "_" + time.strftime("%y%m%d_%H%M%S")
+    build_id = job.env['BUILD_ID_PREFIX'] + "_" + time.strftime("%Y%m%d_%H%M%S")
     return build_id
 
 

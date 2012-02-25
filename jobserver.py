@@ -14,7 +14,7 @@ from dulwich.repo import Repo
 from dulwich.objects import Blob, Tree, Commit, parse_timezone
 from time import time
 from sci.utils import random_sha1
-from sci.slog import JobBegun, JobDone, JobErrorThrown
+from sci.slog import JobBegun, JobDone, JobErrorThrown, SetDescription
 from sci.queue import StartBuildQ
 
 GIT_CONFIG = 'config.git'
@@ -297,7 +297,14 @@ class GetPutJob:
         results['settings'], results['ref'] = get_job(repo, name)
         results['stats'] = db.hgetall(KEY_JOB % name)
         results['stats']['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
-        return jsonify(**results)
+        # Fetch information about the latest 10 builds
+        history = []
+        keys = ('number', 'created', 'description', 'state')
+        for build_id in db.lrange(KEY_JOB_BUILDS % name, -10, -1):
+            values = db.hmget(KEY_BUILD % build_id, keys)
+            history.append(dict(zip(keys, values)))
+        history.reverse()
+        return jsonify(history = history, **results)
 
 
 KEY_JOB = 'job:%s'
@@ -330,6 +337,7 @@ def new_build(db, job, job_ref, parameters = {},
                  recipe_ref = recipe_ref,
                  number = 0,
                  state = state,
+                 description = '',
                  created = now,
                  session_id = 'S%s' % random_sha1(),
                  parameters = json.dumps(parameters))
@@ -448,23 +456,25 @@ KEY_SLOG = 'slog:%s:%s'
 
 
 def DoJobDone(db, build_id, li):
-    build_id = 'B' + build_id
     db.hset(KEY_BUILD % build_id, 'state', STATE_DONE)
 
 
 def DoJobErrorThrown(db, build_id, li):
-    build_id = 'B' + build_id
     db.hset(KEY_BUILD % build_id, 'state', STATE_FAILED)
 
 
 def DoJobBegun(db, build_id, li):
-    build_id = 'B' + build_id
     db.hset(KEY_BUILD % build_id, 'state', STATE_RUNNING)
+
+
+def DoSetDescription(db, build_id, li):
+    db.hset(KEY_BUILD % build_id, 'description', li['params']['description'])
 
 
 SLOG_HANDLERS = {JobBegun.type: DoJobBegun,
                  JobDone.type: DoJobDone,
-                 JobErrorThrown.type: DoJobErrorThrown}
+                 JobErrorThrown.type: DoJobErrorThrown,
+                 SetDescription.type: DoSetDescription}
 
 
 class AddLog:

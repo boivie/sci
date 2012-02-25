@@ -1,0 +1,39 @@
+{% extends "job_base.html" %}
+{% block subcontents %}
+    <div class="row">
+      <div class="span12">
+	<table class="table table-striped">
+	  <thead>
+	    <tr>
+	      <th>Build</th>
+	      <th>Description</th>
+	      <th>When</th>
+	    </tr>
+	  </thead>
+	  <tbody>
+{% for item in job.history %}
+            <tr>
+	      <td>
+{% if item.state == 'done' %}
+<a class="btn btn-small btn-success" href="{{job_url}},{{item.number}}">
+<i class="icon-ok icon-white"></i>
+{% elif item.state == 'failed' %}
+<a class="btn btn-small btn-danger" href="{{job_url}},{{item.number}}">
+<i class="icon-remove icon-white"></i>
+{% elif item.state == 'running' %}
+<a class="btn btn-small btn-warning" href="{{job_url}},{{item.number}}">
+<i class="icon-play icon-white"></i>
+{% else %}
+<a class="btn btn-small" href="{{job_url}},{{item.number}}">
+<i class="icon-off"></i>
+{% endif %}
+		  {{item.number}}</a></td>
+              <td>{{item.description|default("none given")}}</td>
+	      <td>{{item.created|pretty_date}}</td>
+	    </tr>
+{% endfor %}
+	  </tbody>
+	</table>
+      </div>
+    </div>
+{% endblock %}
