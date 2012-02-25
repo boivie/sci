@@ -295,8 +295,11 @@ class GetPutJob:
         name = parts[0]
         repo = get_repo(GIT_CONFIG)
         results['settings'], results['ref'] = get_job(repo, name)
-        results['stats'] = db.hgetall(KEY_JOB % name)
-        results['stats']['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
+        success_bid = db.hget(KEY_JOB % name, 'success')
+        if success_bid:
+            success_no = db.hget(KEY_BUILD % success_bid, 'number')
+            results['success_no'] = int(success_no)
+        results['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
         # Fetch information about the latest 10 builds
         history = []
         keys = ('number', 'created', 'description', 'state')
@@ -457,6 +460,10 @@ KEY_SLOG = 'slog:%s:%s'
 
 def DoJobDone(db, build_id, li):
     db.hset(KEY_BUILD % build_id, 'state', STATE_DONE)
+    # Set the job's last success to this one
+    job = db.hget(KEY_BUILD % build_id, 'job_name')
+    if job:
+        db.hset(KEY_JOB % job, 'success', build_id)
 
 
 def DoJobErrorThrown(db, build_id, li):

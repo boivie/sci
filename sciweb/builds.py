@@ -61,9 +61,9 @@ def show_job(id):
     if show == 'settings':
         return show_settings(info, id)
     if show == 'latest':
-        return show_build(info, id, info['stats'].get('latest_no', 0), 'latest')
+        return show_build(info, id, info.get('latest_no', 0), 'latest')
     elif show == 'success':
-        return show_build(info, id, info['stats'].get('success_no', 0), 'success')
+        return show_build(info, id, info.get('success_no', 0), 'success')
     elif show == 'history':
         return show_history(info, id)
     else:
