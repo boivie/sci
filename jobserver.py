@@ -445,9 +445,9 @@ class ListJobs:
             job_name = name[16:]
             job, job_ref = get_job(repo, job_name, repo.refs[name])
 
-            info = db.hgetall(KEY_JOB % job_name)
-            info['id'] = job_name
-            info['recipe_name'] = job['recipe_name']
+            info = dict(id = job_name,
+                        recipe_name = job['recipe_name'],
+                        latest_no = db.llen(KEY_JOB_BUILDS % job_name))
             if 'recipe_ref' in job:
                 info['recipe_ref'] = job['recipe_ref']
             jobs.append(info)
