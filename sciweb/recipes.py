@@ -47,7 +47,7 @@ def show(id):
 
 @app.route('/', methods = ['GET'])
 def index():
-    recipes = c().call('/recipes')['recipes']
+    recipes = c().call('/recipe')['recipes']
     for recipe in recipes:
         recipe['url'] = url_for('.show', id = recipe['id'])
 

@@ -1,4 +1,5 @@
 import json
+KEY_QUEUE = 'js:queue'
 
 
 class QueueItem(object):
@@ -18,3 +19,10 @@ class StartBuildQ(QueueItem):
     def __init__(self, build_id, session_id):
         self.params = dict(build_id = build_id,
                            session_id = session_id)
+
+
+def queue(db, item, front = False):
+    if front:
+        db.lpush(KEY_QUEUE, item.serialize())
+    else:
+        db.rpush(KEY_QUEUE, item.serialize())

@@ -77,7 +77,7 @@ def show_job(id):
 
 @app.route('/', methods = ['GET'])
 def index():
-    jobs = js().call('/jobs')['jobs']
+    jobs = js().call('/job')['jobs']
     for job in jobs:
         job['url'] = url_for('.show_job', id = job['id'])
 
