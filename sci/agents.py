@@ -9,7 +9,6 @@
 """
 import json
 from .http_client import HttpClient
-from .slog import DispatchedJob, JobJoined
 
 STATE_NONE, STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(4)
 
@@ -31,14 +30,12 @@ class Agent(object):
                 "labels": ['any'],
                 "parent_session": job.session.id}
         res = HttpClient(url).call('/agent/dispatch', input = json.dumps(data))
-        job.slog(DispatchedJob(res['session_id']))
         self.session_id = res['session_id']
         self.state = STATE_RUNNING
 
     def join(self, url, job):
         assert(self.state == STATE_RUNNING)
         res = HttpClient(url).call('/agent/result/%s' % self.session_id)
-        job.slog(JobJoined(self.session_id))
         self.output = res['output']
         self.result = res['result']
         self.state = STATE_DONE

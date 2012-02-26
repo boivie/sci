@@ -19,6 +19,7 @@ def conn():
 
 def worker(msg):
     item = json.loads(msg)
+    logging.debug("Got msg '%s'" % item['type'])
     if item['type'] == StartBuildQ.type:
         client = HttpClient("http://localhost:6697")
         data = dict(build_id = item['params']['build_id'],
@@ -41,9 +42,7 @@ if __name__ == '__main__':
     db = conn()
     try:
         while True:
-            logging.debug("Fetching a message")
             q, item = db.blpop(KEY_QUEUE)
-            logging.debug("Got a msg", item)
             worker(item)
     except KeyboardInterrupt:
         sys.exit(1)

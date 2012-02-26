@@ -98,6 +98,10 @@ def set_session_dispatched(db, session_id, agent_id):
                                         'agent': agent_id})
 
 
+def set_session_running(db, session_id):
+    db.hmset(KEY_SESSION % session_id, {'state': STATE_RUNNING})
+
+
 def get_build_sessions(db, build_id):
     return db.smembers(KEY_BUILD_SESSIONS % build_id)
 

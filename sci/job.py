@@ -207,8 +207,23 @@ class Job(object):
                                                      'parameters': params}))
         session = Session.create(build_info['session_id'])
 
-        return Bootstrap.run(session, build_id = build_info['id'],
-                             jobserver = self.jobserver)
+        # Normally, the agents indicate when a session is started
+        # and finishes, but since we run the job ourselves, we must
+        # manually do it.
+        client.call('/build/started/%s' % session.id,
+                    method = 'POST')
+        try:
+            res = Bootstrap.run(session, build_id = build_info['id'],
+                                jobserver = self.jobserver)
+        except Exception as e:
+#            client.call('/build/done/%s' % session.id,
+#                        input = {'result': 'error'})
+            raise e
+        else:
+            client.call('/build/done/%s' % session.id,
+                        input = {'result': 'success',
+                                 'output': res})
+        return res
 
     def run(self, cmd, **kwargs):
         """Runs a command in a shell

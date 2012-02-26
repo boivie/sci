@@ -12,10 +12,12 @@
       <div class="span12">
 	<h2>#{{build.number}} - {{build.description}}</h2>
 	<p>Started {{build.created|pretty_date}} from job <a href="{{build.job_url}},settings">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
-{% if build.state == 'done' %}
+{% if build.result == 'success' %}
 	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
-{% elif build.state == 'failed' %}
+{% elif build.result == 'failed' %}
 	<div class="alert alert-error">This build finished with errors.</div>
+{% elif build.result == 'aborted' %}
+	<div class="alert alert-error">This build was aborted.</div>
 {% endif %}
 {% if build.parameters %}
        <h3>Build Parameters</h3>

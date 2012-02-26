@@ -23,20 +23,6 @@ class LogItem(object):
         return json.dumps(d)
 
 
-class DispatchedJob(LogItem):
-    type = 'dispatched-job'
-
-    def __init__(self, session):
-        self.params = dict(session = session)
-
-
-class JobJoined(LogItem):
-    type = 'job-joined'
-
-    def __init__(self, session):
-        self.params = dict(session = session)
-
-
 class StepBegun(LogItem):
     type = 'step-begun'
 
@@ -78,3 +64,21 @@ class SetDescription(LogItem):
 
     def __init__(self, description):
         self.params = dict(description = description)
+
+
+class SessionStarted(LogItem):
+    type = 'session-start'
+
+
+class SessionDone(LogItem):
+    type = 'session-done'
+
+    def __init__(self, result):
+        self.params = dict(result = result)
+
+
+class QueuedSession(LogItem):
+    type = 'queued-session'
+
+    def __init__(self, session_id):
+        self.params = dict(session_id = session_id)

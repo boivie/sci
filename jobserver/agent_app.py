@@ -11,9 +11,11 @@ from jobserver.utils import get_ts
 from jobserver.db import conn
 from jobserver.webutils import abort, jsonify
 from jobserver.build import create_session, get_session
-from jobserver.build import STATE_DONE, STATE_QUEUED, STATE_DISPATCHED
-from jobserver.build import set_session_done, set_session_dispatched
+from jobserver.build import STATE_DONE, STATE_QUEUED
+from jobserver.build import set_session_done, set_session_dispatched, set_session_running
 from jobserver.queue import queue, DispatchSession
+from jobserver.slog import add_slog
+from sci.slog import SessionStarted, SessionDone, QueuedSession
 
 urls = (
     '/available/A([0-9a-f]{40})', 'CheckInAvailable',
@@ -92,21 +94,17 @@ def get_did_or_make_avail(pipe, agent_id, agent_info):
     return None
 
 
-def handle_last_results(db, data):
-    data = json.loads(data)
-    session_id = data.get('id')
-    if not session_id:
-        return
-    set_session_done(db, session_id, data['result'], data['output'])
-
-
 class CheckInAvailable:
     def POST(self, agent_id):
         agent_id = 'A' + agent_id
         db = conn()
 
         # Do we have results from a previous dispatch?
-        handle_last_results(db, web.data())
+        data = json.loads(web.data())
+        session_id = data.get('session_id')
+        if session_id:
+            set_session_done(db, session_id, data['result'], data['output'])
+            add_slog(db, session_id, SessionDone(data['result']))
 
         db.hset(KEY_AGENT % agent_id, 'state', STATE_AVAIL)
         db.hset(KEY_AGENT % agent_id, 'seen', get_ts())
@@ -119,6 +117,12 @@ class CheckInBusy:
     def POST(self, agent_id):
         agent_id = 'A' + agent_id
         db = conn()
+
+        data = json.loads(web.data())
+        session_id = data.get('id')
+        if session_id:
+            set_session_running(db, session_id)
+            add_slog(db, session_id, SessionStarted())
 
         db.hsetnx(KEY_AGENT % agent_id, 'state', STATE_BUSY)
         db.hsetnx(KEY_AGENT % agent_id, 'seen', get_ts())
@@ -221,6 +225,7 @@ class DispatchBuild:
         session_id = create_session(db, input['build_id'], input,
                                     state = STATE_QUEUED)
         queue(db, DispatchSession(session_id))
+        add_slog(db, input['parent_session'], QueuedSession(session_id))
         return jsonify(session_id = session_id)
 
 

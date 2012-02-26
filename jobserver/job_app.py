@@ -8,7 +8,7 @@ from jobserver.gitdb import config, create_commit, update_head
 from jobserver.gitdb import NoChangesException, CommitException
 from jobserver.webutils import abort, jsonify
 from jobserver.job import get_job, KEY_JOB
-from jobserver.build import KEY_BUILD, KEY_JOB_BUILDS
+from jobserver.build import KEY_BUILD, KEY_JOB_BUILDS, KEY_SESSION
 
 urls = (
     '',                        'ListJobs',
@@ -61,10 +61,16 @@ class GetPutJob:
         results['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
         # Fetch information about the latest 10 builds
         history = []
-        keys = ('number', 'created', 'description', 'state')
+        build_keys = ('number', 'created', 'description', 'session_id')
+        session_keys = ('state', 'result')
         for build_id in db.lrange(KEY_JOB_BUILDS % name, -10, -1):
-            values = db.hmget(KEY_BUILD % build_id, keys)
-            history.append(dict(zip(keys, values)))
+            number, created, description, session_id = \
+                db.hmget(KEY_BUILD % build_id, build_keys)
+            state, result = db.hmget(KEY_SESSION % session_id, session_keys)
+
+            history.append(dict(number = number, created = created,
+                                description = description,
+                                state = state, result = result))
         history.reverse()
         return jsonify(history = history, **results)
 

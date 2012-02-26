@@ -1,10 +1,12 @@
 import json
+import types
 
 from sci.slog import JobBegun, JobDone, JobErrorThrown, SetDescription
 from jobserver.build import KEY_BUILD
 from jobserver.job import KEY_JOB
+from jobserver.build import get_session_build
 
-KEY_SLOG = 'slog:%s:%s'
+KEY_SLOG = 'slog:%s'
 
 # TODO: Update sessions when and how?
 
@@ -34,9 +36,16 @@ SLOG_HANDLERS = {JobBegun.type: DoJobBegun,
                  SetDescription.type: DoSetDescription}
 
 
-def add_slog(db, build_id, session_id, data):
-    db.rpush(KEY_SLOG % (build_id, session_id), data)
-    li = json.loads(data)
+def add_slog(db, session_id, item):
+    if not type(item) in types.StringTypes:
+        item = item.serialize()
+
+    build_id = get_session_build(db, session_id)
+    if not build_id:
+        return
+
+    db.rpush(KEY_SLOG % session_id, item)
+    li = json.loads(item)
     try:
         handler = SLOG_HANDLERS[li['type']]
     except KeyError:

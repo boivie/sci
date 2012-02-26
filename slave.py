@@ -80,24 +80,24 @@ class GetLog:
                 yield data
 
 
-def send_available(dispatch_id = None, result = None, output = None):
+def send_available(session_id = None, result = None, output = None):
     web.config.last_status = int(time.time())
     print("%s checking in (available)" % web.config.node_id)
 
     client = HttpClient("http://127.0.0.1:6697")
     client.call("/agent/available/%s" % web.config.node_id,
-                input = json.dumps({'id': dispatch_id,
+                input = json.dumps({'session_id': session_id,
                                     'result': result,
                                     'output': output}))
 
 
-def send_busy():
+def send_busy(session_id):
     web.config.last_status = int(time.time())
     print("%s checking in (busy)" % web.config.node_id)
 
     client = HttpClient("http://127.0.0.1:6697")
     client.call("/agent/busy/%s" % web.config.node_id,
-                method = 'POST')
+                input = json.dumps({'session_id': session_id}))
 
 
 def send_ping():
@@ -188,7 +188,7 @@ class ExecutionThread(threading.Thread):
                                     cwd = web.config._path)
             proc.stdin.write(item)
             proc.stdin.close()
-            send_busy()
+            send_busy(session_id)
             return_code = proc.wait()
             session = Session.load(session.id)
             result = 'success'
