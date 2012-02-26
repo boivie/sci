@@ -25,7 +25,7 @@ urls = (
     '/queue',                     'GetQueueInfo',
     '/ping/A([0-9a-f]{40})',      'Ping',
     '/register',                  'Register',
-    '/result/S([0-9a-f]{40})',    'GetSessionResult',
+    '/result/B([0-9a-f]{40})-([0-9]+)',    'GetSessionResult',
 )
 
 agent_app = web.application(urls, locals())
@@ -182,6 +182,8 @@ def do_dispatch(db, agent_id, agent_url, input):
 def dispatch_be(session_id):
     db = conn()
     session = get_session(db, session_id)
+    if not session:
+        return
     input = session['input']
     labels = input['labels']
     labels.remove("any")
@@ -222,16 +224,17 @@ class DispatchBuild:
     def POST(self):
         db = conn()
         input = json.loads(web.data())
-        session_id = create_session(db, input['build_id'], input,
+        session_no = create_session(db, input['build_id'], input,
                                     state = STATE_QUEUED)
+        session_id = '%s-%s' % (input['build_id'], session_no)
         queue(db, DispatchSession(session_id))
         add_slog(db, input['parent_session'], QueuedSession(session_id))
         return jsonify(session_id = session_id)
 
 
 class GetSessionResult:
-    def GET(self, session_id):
-        session_id = 'S' + session_id
+    def GET(self, build_id, session_no):
+        session_id = 'B%s-%s' % (build_id, session_no)
         db = conn()
         while True:
             info = get_session(db, session_id)

@@ -36,7 +36,6 @@ def new_build(db, job, job_ref, parameters = {}):
 
     # Insert the build (first without build number, as we don't know it)
     build_id = 'B%s' % random_sha1()
-    session_id = create_session(db, build_id)
     build = dict(job_name = job['name'],
                  job_ref = job_ref,
                  recipe_name = job['recipe_name'],
@@ -44,9 +43,12 @@ def new_build(db, job, job_ref, parameters = {}):
                  number = 0,
                  description = '',
                  created = now,
-                 session_id = session_id,
+                 max_session = 0,
                  parameters = json.dumps(parameters))
     db.hmset(KEY_BUILD % build_id, build)
+
+    create_session(db, build_id)
+    build['session_id'] = build_id + '-1'
 
     number = db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
     db.hset(KEY_BUILD % build_id, 'number', number)
@@ -63,21 +65,22 @@ def get_build_info(db, build_id):
 
 
 def create_session(db, build_id, input = None, state = STATE_NEW):
-    session_id = 'S' + random_sha1()
-    session = dict(build_id = build_id,
-                   created = get_ts(),
+    session = dict(created = get_ts(),
                    state = state,
                    result = RESULT_UNKNOWN,
                    input = json.dumps(input),
                    agent = None,
                    output = json.dumps(None))
+    session_no = db.hincrby(KEY_BUILD % build_id, 'max_session', 1)
+    session_id = '%s-%s' % (build_id, session_no)
     db.hmset(KEY_SESSION % session_id, session)
-    db.sadd(KEY_BUILD_SESSIONS % build_id, session_id)
-    return session_id
+    return session_no
 
 
 def get_session(db, session_id):
     session = db.hgetall(KEY_SESSION % session_id)
+    if not session:
+        return None
     session['input'] = json.loads(session['input'])
     session['output'] = json.loads(session['output'])
     return session
@@ -100,11 +103,3 @@ def set_session_dispatched(db, session_id, agent_id):
 
 def set_session_running(db, session_id):
     db.hmset(KEY_SESSION % session_id, {'state': STATE_RUNNING})
-
-
-def get_build_sessions(db, build_id):
-    return db.smembers(KEY_BUILD_SESSIONS % build_id)
-
-
-def get_session_build(db, session_id):
-    return db.hget(KEY_SESSION % session_id, 'build_id')

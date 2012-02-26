@@ -9,7 +9,7 @@ from jobserver.gitdb import config
 from jobserver.job import get_job
 from jobserver.build import new_build, get_build_info, set_session_running
 from jobserver.build import set_session_done, get_session
-from jobserver.build import KEY_JOB_BUILDS, get_build_sessions, set_session_queued
+from jobserver.build import KEY_JOB_BUILDS, set_session_queued
 from jobserver.queue import queue, StartBuildQ
 
 urls = (
@@ -17,8 +17,8 @@ urls = (
     '/start/(.+)',           'StartBuild',
 
     # Used when manually testing a job
-    '/started/S([0-9a-f]{40})',         'StartedBuild',
-    '/done/S([0-9a-f]{40})',            'DoneBuild',
+    '/started/B([0-9a-f]{40})',         'StartedBuild',
+    '/done/B([0-9a-f]{40})',            'DoneBuild',
 
     # If the build ID is specified, we allow it to be updated
     '/B([0-9a-f]{40}).json', 'GetUpdateBuild',
@@ -59,17 +59,17 @@ class StartBuild:
 
 
 class StartedBuild:
-    def POST(self, session_id):
+    def POST(self, build_id):
         db = conn()
-        set_session_running(db, 'S' + session_id)
+        set_session_running(db, 'B%s-1' % build_id)
         return jsonify()
 
 
 class DoneBuild:
-    def POST(self, session_id):
+    def POST(self, build_id):
         db = conn()
         input = json.loads(web.data())
-        set_session_done(db, 'S' + session_id, input['result'], input['output'])
+        set_session_done(db, 'B%s-1' % build_id, input['result'], input['output'])
         return jsonify()
 
 
@@ -92,12 +92,9 @@ class GetBuild:
         if not build:
             abort(404, 'Invalid Build ID')
 
-        log = {}
-        sessions = get_build_sessions(db, build_id)
-        for session_id in sessions:
-            log[session_id] = db.lrange(KEY_SLOG % session_id, 0, 1000)
+        log = db.lrange(KEY_SLOG % build_id, 0, 1000)
         # Fetch state and result for the main session also
-        session = get_session(db, build['session_id'])
+        session = get_session(db, build_id + '-1')
         build['state'] = session['state']
         build['result'] = session['result']
         return jsonify(build = build,

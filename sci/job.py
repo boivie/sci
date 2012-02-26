@@ -159,8 +159,7 @@ class Job(object):
             for name in self._default_fns:
                 if not name in env:
                     env[name] = self._default_fns[name]()
-
-        self.slog(JobBegun())
+            self.slog(JobBegun())
         self._print_banner("Preparing Job", dash = "=")
 
         print("Build-Id: %s" % self.build_id)
@@ -169,7 +168,8 @@ class Job(object):
         self._print_banner("Starting Job", dash = "=")
         ret = entrypoint.fun(*args, **kwargs)
         self._print_banner("Job Finished", dash = "=")
-        self.slog(JobDone())
+        if entrypoint.is_main:
+            self.slog(JobDone())
         return ret
 
     def slog(self, item):
@@ -210,7 +210,7 @@ class Job(object):
         # Normally, the agents indicate when a session is started
         # and finishes, but since we run the job ourselves, we must
         # manually do it.
-        client.call('/build/started/%s' % session.id,
+        client.call('/build/started/%s' % build_info['id'],
                     method = 'POST')
         try:
             res = Bootstrap.run(session, build_id = build_info['id'],
@@ -220,7 +220,7 @@ class Job(object):
 #                        input = {'result': 'error'})
             raise e
         else:
-            client.call('/build/done/%s' % session.id,
+            client.call('/build/done/%s' % build_info['id'],
                         input = {'result': 'success',
                                  'output': res})
         return res
