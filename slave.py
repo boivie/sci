@@ -84,8 +84,8 @@ def send_available(dispatch_id = None, job_result = None):
     web.config.last_status = int(time.time())
     print("%s checking in (available)" % web.config.token)
 
-    client = HttpClient("http://127.0.0.1:6699")
-    result = client.call("/available/%s" % web.config.token,
+    client = HttpClient("http://127.0.0.1:6697")
+    result = client.call("/agent/available/%s" % web.config.token,
                          input = json.dumps({'id': dispatch_id,
                                              'result': job_result}))
     return result.get('do')
@@ -95,8 +95,8 @@ def send_busy():
     web.config.last_status = int(time.time())
     print("%s checking in (busy)" % web.config.token)
 
-    client = HttpClient("http://127.0.0.1:6699")
-    client.call("/busy/%s" % web.config.token,
+    client = HttpClient("http://127.0.0.1:6697")
+    client.call("/agent/busy/%s" % web.config.token,
                 method = 'POST')
 
 
@@ -104,8 +104,8 @@ def send_ping():
     web.config.last_status = int(time.time())
     print("%s pinging" % web.config.token)
 
-    client = HttpClient("http://127.0.0.1:6699")
-    client.call("/ping/%s" % web.config.token,
+    client = HttpClient("http://127.0.0.1:6697")
+    client.call("/agent/ping/%s" % web.config.token,
                 method = "POST")
 
 
@@ -242,9 +242,9 @@ if __name__ == "__main__":
     web.config.port = int(opts.port)
 
     print("Registering at AHQ and getting token")
-    client = HttpClient("http://127.0.0.1:6699")
+    client = HttpClient("http://127.0.0.1:6697")
     hostname = "%s-%d" % (os.uname()[1], web.config.port)
-    ret = client.call("/register",
+    ret = client.call("/agent/register",
                       input = json.dumps({"id": web.config.node_id,
                                           'nick': hostname,
                                           "port": web.config.port,

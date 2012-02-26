@@ -1,17 +1,28 @@
-#!/usr/bin/env python
-"""
-    sci.ahq
-    ~~~~~~~
+import json
+import logging
+import time
 
-    Agent Coordinator
+import redis
+import web
 
-    :copyright: (c) 2011 by Victor Boivie
-    :license: Apache License 2.0
-"""
-from optparse import OptionParser
-import web, redis, json, time, logging
 from sci.utils import random_sha1
 from sci.http_client import HttpClient
+from jobserver.utils import get_ts
+from jobserver.db import conn
+from jobserver.webutils import abort, jsonify
+
+urls = (
+    '/available/N([0-9a-f]{40})', 'CheckInAvailable',
+    '/busy/N([0-9a-f]{40})',      'CheckInBusy',
+    '/dispatch',                  'DispatchBuild',
+    '/agents',                    'GetAgentsInfo',
+    '/queue',                     'GetQueueInfo',
+    '/ping/N([0-9a-f]{40})',      'Ping',
+    '/register',                  'Register',
+    '/result/S([0-9a-f]{40})',    'GetDispatchedResult',
+)
+
+agent_app = web.application(urls, locals())
 
 
 KEY_LABEL = 'ahq:label:%s'
@@ -35,38 +46,6 @@ STATE_BUSY = "busy"
 DISPATCH_STATE_QUEUED = 'queued'
 DISPATCH_STATE_RUNNING = 'running'
 DISPATCH_STATE_DONE = 'done'
-
-urls = (
-    '/available/N([0-9a-f]{40})', 'CheckInAvailable',
-    '/busy/N([0-9a-f]{40})',      'CheckInBusy',
-    '/dispatch',                  'DispatchBuild',
-    '/agents',                    'GetAgentsInfo',
-    '/queue',                     'GetQueueInfo',
-    '/ping/N([0-9a-f]{40})',      'Ping',
-    '/register',                  'Register',
-    '/result/S([0-9a-f]{40})',    'GetDispatchedResult',
-)
-
-app = web.application(urls, globals())
-pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
-
-
-def get_ts():
-    return int(time.time())
-
-
-def jsonify(**kwargs):
-    web.header('Content-Type', 'application/json')
-    return json.dumps(kwargs)
-
-
-def abort(status, data):
-    raise web.webapi.HTTPError(status = status, data = data)
-
-
-def conn():
-    r = redis.StrictRedis(connection_pool=pool)
-    return r
 
 
 class Register:
@@ -365,15 +344,3 @@ class GetQueueInfo:
                 queue.append({"id": did,
                               "labels": info["labels"]})
         return jsonify(queue = queue)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    parser = OptionParser()
-    parser.add_option("-p", "--port", dest = "port", default = 6699,
-                      help = "port to use")
-    parser.add_option("--test",
-                      action = "store_true", dest = "test", default = False)
-    (opts, args) = parser.parse_args()
-
-    web.httpserver.runsimple(app.wsgifunc(), ("0.0.0.0", int(opts.port)))

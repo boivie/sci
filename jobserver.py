@@ -20,6 +20,7 @@ from jobserver.slog_app import slog_app
 from jobserver.job_app import job_app
 from jobserver.recipe_app import recipe_app
 from jobserver.config_app import config_app
+from jobserver.agent_app import agent_app
 
 urls = (
     '/config', config_app,
@@ -27,6 +28,7 @@ urls = (
     '/slog',   slog_app,
     '/job',    job_app,
     '/recipe', recipe_app,
+    '/agent',  agent_app,
 )
 
 app = web.application(urls, globals())

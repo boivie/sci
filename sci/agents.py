@@ -31,14 +31,14 @@ class Agent(object):
                 "labels": ['any'],
                 "session_id": None,  # not known yet
                 "parent_session": job.session.id}
-        res = HttpClient(url).call('/dispatch', input = json.dumps(data))
+        res = HttpClient(url).call('/agent/dispatch', input = json.dumps(data))
         job.slog(DispatchedJob(res['id']))
         self.dispatch_id = res['id']
         self.state = STATE_RUNNING
 
     def join(self, url, job):
         assert(self.state == STATE_RUNNING)
-        res = HttpClient(url).call('/result/%s' % self.dispatch_id)
+        res = HttpClient(url).call('/agent/result/%s' % self.dispatch_id)
         job.slog(JobJoined(self.dispatch_id))
         self.result = res['result']
         self.state = STATE_DONE

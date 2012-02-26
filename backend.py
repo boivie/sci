@@ -18,7 +18,7 @@ def conn():
 def worker(msg):
     item = json.loads(msg)
     if item['type'] == StartBuildQ.type:
-        client = HttpClient("http://localhost:6699")
+        client = HttpClient("http://localhost:6697")
         data = dict(build_id = item['params']['build_id'],
                     session_id = item['params']['session_id'][1:],
                     job_server = 'http://localhost:6697',
@@ -27,7 +27,7 @@ def worker(msg):
                     args = [],
                     labels = ['any'],
                     kwargs = {})
-        client.call('/dispatch', input = json.dumps(data))
+        client.call('/agent/dispatch', input = json.dumps(data))
 
 
 if __name__ == '__main__':

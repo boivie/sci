@@ -80,7 +80,7 @@ class Job(object):
         self.env = Environment()
         self._default_fns = {}
         self.artifacts = Artifacts(self, "http://localhost:6698")
-        self.agents = Agents(self, "http://localhost:6699")
+        self.agents = Agents(self, "http://localhost:6697")
         self.jobserver = "http://localhost:6697"
 
     def set_description(self, description):

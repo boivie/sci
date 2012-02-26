@@ -7,7 +7,7 @@ app = Blueprint('agents', __name__, template_folder='templates')
 
 
 def ahq():
-    return HttpClient('http://127.0.0.1:6699')
+    return HttpClient('http://127.0.0.1:6697')
 
 
 @app.route('/edit/<id>', methods = ['GET'])
@@ -22,7 +22,7 @@ def show(id):
 
 @app.route('/', methods = ['GET'])
 def index():
-    agents = ahq().call('/agents')['agents']
+    agents = ahq().call('/agent/agents')['agents']
     for agent in agents:
         agent['url'] = url_for('.show', id = agent['id'])
         if not agent['nick']:
