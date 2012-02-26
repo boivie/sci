@@ -38,7 +38,7 @@ def worker(msg):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-
+    logging.info("Backend ready to serve the world. And more.")
     db = conn()
     try:
         while True:
