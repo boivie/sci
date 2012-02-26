@@ -17,8 +17,8 @@ in a terminal window of its own (or a GNU screen window).
 
 $ redis-server redis.conf
 $ ./ss.py
-$ ./jobserver.py        
-$ ./ahq.py
+$ ./jobserver.py
+$ ./backend.py
 $ ./start_slaves.sh 6
 
 Running the sample
@@ -37,6 +37,13 @@ us now run the sample:
 
 $ cd samples
 $ ./build-android.py BRANCH=donut-dev
+
+Running the Web Frontend
+------------------------
+
+You can also start a web frontend that allows you to manage jobs, builds and more.
+
+$ ./sciweb.py
 
 License
 =======
