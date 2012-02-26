@@ -173,7 +173,7 @@ class Job(object):
         return ret
 
     def slog(self, item):
-        url = '/slog/%s/S%s' % (self.build_id, self.session.id)
+        url = '/slog/%s/%s' % (self.build_id, self.session.id)
         HttpClient(self.jobserver).call(url, input = item.serialize())
 
     def start(self, params = {}):
@@ -205,7 +205,7 @@ class Job(object):
         build_info = client.call('/build/create/private.json',
                                  input = json.dumps({'job_ref': job_ref,
                                                      'parameters': params}))
-        session = Session.create(build_info['session_id'][1:])
+        session = Session.create(build_info['session_id'])
 
         return Bootstrap.run(session, build_id = build_info['id'],
                              jobserver = self.jobserver)

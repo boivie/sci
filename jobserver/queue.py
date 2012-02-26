@@ -21,6 +21,13 @@ class StartBuildQ(QueueItem):
                            session_id = session_id)
 
 
+class DispatchSession(QueueItem):
+    type = 'dispatch-sess'
+
+    def __init__(self, session_id):
+        self.params = dict(session_id = session_id)
+
+
 def queue(db, item, front = False):
     if front:
         db.lpush(KEY_QUEUE, item.serialize())

@@ -29,17 +29,17 @@ class Agent(object):
                 "kwargs": self.kwargs,
                 "env": job.env.serialize(),
                 "labels": ['any'],
-                "session_id": None,  # not known yet
                 "parent_session": job.session.id}
         res = HttpClient(url).call('/agent/dispatch', input = json.dumps(data))
-        job.slog(DispatchedJob(res['id']))
-        self.dispatch_id = res['id']
+        job.slog(DispatchedJob(res['session_id']))
+        self.session_id = res['session_id']
         self.state = STATE_RUNNING
 
     def join(self, url, job):
         assert(self.state == STATE_RUNNING)
-        res = HttpClient(url).call('/agent/result/%s' % self.dispatch_id)
-        job.slog(JobJoined(self.dispatch_id))
+        res = HttpClient(url).call('/agent/result/%s' % self.session_id)
+        job.slog(JobJoined(self.session_id))
+        self.output = res['output']
         self.result = res['result']
         self.state = STATE_DONE
 
@@ -64,7 +64,7 @@ class Agents(object):
             agent.join(self._ahq_url, self.job)
 
         # Return all the return values
-        res = [a.result for a in self.agents]
+        res = [a.output for a in self.agents]
 
         self.agents = []
         return res

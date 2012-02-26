@@ -80,15 +80,15 @@ class GetLog:
                 yield data
 
 
-def send_available(dispatch_id = None, job_result = None):
+def send_available(dispatch_id = None, result = None, output = None):
     web.config.last_status = int(time.time())
     print("%s checking in (available)" % web.config.node_id)
 
     client = HttpClient("http://127.0.0.1:6697")
-    result = client.call("/agent/available/%s" % web.config.node_id,
-                         input = json.dumps({'id': dispatch_id,
-                                             'result': job_result}))
-    return result.get('do')
+    client.call("/agent/available/%s" % web.config.node_id,
+                input = json.dumps({'id': dispatch_id,
+                                    'result': result,
+                                    'output': output}))
 
 
 def send_busy():
@@ -191,17 +191,19 @@ class ExecutionThread(threading.Thread):
             send_busy()
             return_code = proc.wait()
             session = Session.load(session.id)
+            result = 'success'
             if return_code != 0:
                 # We never do that. It must have crashed - clear the session
                 print("Job CRASHED")
                 session.return_code = return_code
                 session.state = "finished"
                 session.save()
+                result = 'error'
             else:
                 print("Job terminated")
 
-            job_result = session.return_value
-            send_available(session_id, job_result)
+            output = session.return_value
+            send_available(session_id, result, output)
 
 
 if __name__ == "__main__":

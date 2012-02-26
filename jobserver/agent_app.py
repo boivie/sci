@@ -10,6 +10,10 @@ from sci.http_client import HttpClient
 from jobserver.utils import get_ts
 from jobserver.db import conn
 from jobserver.webutils import abort, jsonify
+from jobserver.build import create_session, get_session
+from jobserver.build import STATE_DONE, STATE_QUEUED, STATE_DISPATCHED
+from jobserver.build import set_session_done, set_session_dispatched
+from jobserver.queue import queue, DispatchSession
 
 urls = (
     '/available/A([0-9a-f]{40})', 'CheckInAvailable',
@@ -19,7 +23,7 @@ urls = (
     '/queue',                     'GetQueueInfo',
     '/ping/A([0-9a-f]{40})',      'Ping',
     '/register',                  'Register',
-    '/result/S([0-9a-f]{40})',    'GetDispatchedResult',
+    '/result/S([0-9a-f]{40})',    'GetSessionResult',
 )
 
 agent_app = web.application(urls, locals())
@@ -41,10 +45,6 @@ STATE_INACTIVE = "inactive"
 STATE_AVAIL = "available"
 STATE_PENDING = "pending"
 STATE_BUSY = "busy"
-
-DISPATCH_STATE_QUEUED = 'queued'
-DISPATCH_STATE_RUNNING = 'running'
-DISPATCH_STATE_DONE = 'done'
 
 
 class Register:
@@ -72,8 +72,8 @@ class Register:
 def get_did_or_make_avail(pipe, agent_id, agent_info):
     """Starts multi, doesn't exec"""
     pipe.watch(KEY_QUEUE)
-    queue = pipe.zrange(KEY_QUEUE, 0, -1)
-    for session_id in queue:
+    queueq = pipe.zrange(KEY_QUEUE, 0, -1)
+    for session_id in queueq:
         dispatch_info = json.loads(pipe.get(KEY_DISPATCH_INFO % session_id))
         # Do we fulfill its requirements?
         if dispatch_info['state'] != DISPATCH_STATE_QUEUED:
@@ -95,23 +95,9 @@ def get_did_or_make_avail(pipe, agent_id, agent_info):
 def handle_last_results(db, data):
     data = json.loads(data)
     session_id = data.get('id')
-    result = data.get('result')
     if not session_id:
         return
-    key = KEY_DISPATCH_INFO % session_id
-    while True:
-        try:
-            with db.pipeline() as pipe:
-                pipe.watch(key)
-                info = json.loads(pipe.get(key))
-                info['state'] = DISPATCH_STATE_DONE
-                info['result'] = result
-                pipe.multi()
-                pipe.set(key, json.dumps(info))
-                pipe.execute()
-                break
-        except redis.WatchError:
-            continue
+    set_session_done(db, session_id, data['result'], data['output'])
 
 
 class CheckInAvailable:
@@ -160,10 +146,10 @@ def allocate(pipe, agent_id, session_id):
         return None
 
     # verify the 'seen' so that it's not too old
-    if info['seen'] + SEEN_EXPIRY_TTL < int(time.time()):
-        print("%s didn't check in - dropping" % agent_id)
-        pipe.hset(KEY_AGENT % agent_id, 'state', STATE_INACTIVE)
-        return None
+    #if info['seen'] + SEEN_EXPIRY_TTL < int(time.time()):
+    #    print("%s didn't check in - dropping" % agent_id)
+    #    pipe.hset(KEY_AGENT % agent_id, 'state', STATE_INACTIVE)
+    #    return None
 
     pipe.hset(KEY_AGENT % agent_id, 'state', STATE_PENDING)
     pipe.hset(KEY_AGENT % agent_id, 'dispatch_id', session_id)
@@ -177,7 +163,7 @@ def dispatch_later(pipe, input):
     pipe.set(KEY_DISPATCH_INFO % session_id,
              json.dumps({'labels': input['labels'],
                          'data': input,
-                         'state': DISPATCH_STATE_QUEUED}))
+                         'state': STATE_QUEUED}))
     ts = float(time.time() * 1000)
     pipe.zadd(KEY_QUEUE, ts, session_id)
     return session_id
@@ -187,24 +173,14 @@ def do_dispatch(db, agent_id, agent_url, input):
     print("AGENT URL: '%s'" % agent_url)
     client = HttpClient(agent_url)
     client.call('/dispatch', input = json.dumps(input))
-    # TODO: Possible race condition: The client may finish here,
-    # and call 'checkin'.
-    db.set(KEY_DISPATCH_INFO % input['session_id'],
-           json.dumps({'agent_id': agent_id,
-                       'state': DISPATCH_STATE_RUNNING}))
 
 
-def dispatch(input):
+def dispatch_be(session_id):
+    db = conn()
+    session = get_session(db, session_id)
+    input = session['input']
     labels = input['labels']
     labels.remove("any")
-
-    if input.get('session_id'):
-        session_id = input['session_id']
-    else:
-        session_id = random_sha1()
-        input['session_id'] = session_id
-
-    db = conn()
     alloc_key = KEY_ALLOCATION % random_sha1()
 
     lkeys = [KEY_LABEL % label for label in labels]
@@ -230,31 +206,35 @@ def dispatch(input):
                     if not info:
                         continue
                     url = "http://%s:%s" % (info["ip"], info["port"])
+                    set_session_dispatched(db, session_id, agent_id)
+                    input['session_id'] = session_id
                     do_dispatch(db, agent_id, url, input)
-
-                return 'S' + session_id
+                return
             except redis.WatchError:
                 continue
 
 
 class DispatchBuild:
     def POST(self):
+        db = conn()
         input = json.loads(web.data())
+        session_id = create_session(db, input['build_id'], input,
+                                    state = STATE_QUEUED)
+        queue(db, DispatchSession(session_id))
+        return jsonify(session_id = session_id)
 
-        session_id = dispatch(input)
-        return jsonify(id = session_id)
 
-
-class GetDispatchedResult:
+class GetSessionResult:
     def GET(self, session_id):
+        session_id = 'S' + session_id
         db = conn()
         while True:
-            info = db.get(KEY_DISPATCH_INFO % session_id)
+            info = get_session(db, session_id)
             if not info:
-                abort(404, "Dispatch ID not found")
-            info = json.loads(info)
-            if info['state'] == DISPATCH_STATE_DONE:
-                return jsonify(result = info['result'])
+                abort(404, "Session ID not found")
+            if info['state'] == STATE_DONE:
+                return jsonify(result = info['result'],
+                               output = info['output'])
             time.sleep(0.5)
 
 

@@ -3,8 +3,10 @@ import json, logging, sys
 
 import redis
 
-from sci.queue import StartBuildQ
+from jobserver.queue import StartBuildQ, DispatchSession
 from sci.http_client import HttpClient
+
+from jobserver.agent_app import dispatch_be
 
 redis_pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
 KEY_QUEUE = 'js:queue'
@@ -29,14 +31,19 @@ def worker(msg):
                     kwargs = {})
         client.call('/agent/dispatch', input = json.dumps(data))
 
+    elif item['type'] == DispatchSession.type:
+        dispatch_be(item['params']['session_id'])
+
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+
     db = conn()
     try:
         while True:
             logging.debug("Fetching a message")
             q, item = db.blpop(KEY_QUEUE)
-            logging.debug("Got a msg")
+            logging.debug("Got a msg", item)
             worker(item)
     except KeyboardInterrupt:
         sys.exit(1)
