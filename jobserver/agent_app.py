@@ -12,12 +12,12 @@ from jobserver.db import conn
 from jobserver.webutils import abort, jsonify
 
 urls = (
-    '/available/N([0-9a-f]{40})', 'CheckInAvailable',
-    '/busy/N([0-9a-f]{40})',      'CheckInBusy',
+    '/available/A([0-9a-f]{40})', 'CheckInAvailable',
+    '/busy/A([0-9a-f]{40})',      'CheckInBusy',
     '/dispatch',                  'DispatchBuild',
     '/agents',                    'GetAgentsInfo',
     '/queue',                     'GetQueueInfo',
-    '/ping/N([0-9a-f]{40})',      'Ping',
+    '/ping/A([0-9a-f]{40})',      'Ping',
     '/register',                  'Register',
     '/result/S([0-9a-f]{40})',    'GetDispatchedResult',
 )
@@ -27,7 +27,6 @@ agent_app = web.application(urls, locals())
 
 KEY_LABEL = 'ahq:label:%s'
 KEY_AGENT = 'agent:info:%s'
-KEY_TOKEN = 'ahq:token:%s'
 KEY_ALLOCATION = "ahq:alloc:%s"
 KEY_DISPATCH_INFO = 'ahq:dispatch:info:%s'
 KEY_QUEUE = 'ahq:dispatchq'
@@ -53,24 +52,21 @@ class Register:
         input = json.loads(web.data())
         db = conn()
         agent_id = input['id']
-        token_id = random_sha1()
 
         info = {"ip": web.ctx.ip,
                 'nick': input.get('nick', ''),
                 "port": input["port"],
                 "state": STATE_INACTIVE,
-                "token_id": token_id,
                 "seen": get_ts(),
-                "labels": input["labels"]}
+                "labels": ",".join(input["labels"])}
 
-        db.set(KEY_AGENT % agent_id, json.dumps(info))
+        db.hmset(KEY_AGENT % agent_id, info)
         db.sadd(KEY_ALL, agent_id)
 
         for label in input["labels"]:
             db.sadd(KEY_LABEL % label, agent_id)
 
-        db.set(KEY_TOKEN % token_id, agent_id)
-        return jsonify(token = 'N' + token_id)
+        return jsonify()
 
 
 def get_did_or_make_avail(pipe, agent_id, agent_info):
@@ -96,7 +92,7 @@ def get_did_or_make_avail(pipe, agent_id, agent_info):
     return None
 
 
-def handle_last_results(db, agent_id, data):
+def handle_last_results(db, data):
     data = json.loads(data)
     session_id = data.get('id')
     result = data.get('result')
@@ -119,110 +115,58 @@ def handle_last_results(db, agent_id, data):
 
 
 class CheckInAvailable:
-    def POST(self, token_id):
+    def POST(self, agent_id):
+        agent_id = 'A' + agent_id
         db = conn()
 
-        agent_id = db.get(KEY_TOKEN % token_id)
-        if agent_id is None:
-            abort(404, "Invalid token")
-
         # Do we have results from a previous dispatch?
-        handle_last_results(db, agent_id, web.data())
+        handle_last_results(db, web.data())
 
-        while True:
-            try:
-                with db.pipeline() as pipe:
-                    pipe.watch(KEY_AGENT % agent_id)
-                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
-
-                    dinfo = get_did_or_make_avail(pipe, agent_id, info)
-
-                    info['seen'] = get_ts()
-                    info['state'] = STATE_AVAIL
-                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
-                    pipe.execute()
-
-                    if dinfo:
-                        session_id = dinfo['session_id']
-                        logging.debug("A%s checked in -> S%s" % (agent_id,
-                                                                 session_id))
-                        return jsonify(do = json.dumps(dinfo))
-                    break
-            except redis.WatchError:
-                continue
-
-        logging.debug("A%s checked in" % agent_id)
+        db.hset(KEY_AGENT % agent_id, 'state', STATE_AVAIL)
+        db.hset(KEY_AGENT % agent_id, 'seen', get_ts())
+        # TODO: Race condition -> we may be inside allocate() right now
+        db.sadd(KEY_AVAILABLE, agent_id)
         return jsonify()
 
 
 class CheckInBusy:
-    def POST(self, token_id):
+    def POST(self, agent_id):
+        agent_id = 'A' + agent_id
         db = conn()
 
-        agent_id = db.get(KEY_TOKEN % token_id)
-        if agent_id is None:
-            abort(404, "Invalid token")
-
-        while True:
-            try:
-                with db.pipeline() as pipe:
-                    pipe.watch(KEY_AGENT % agent_id)
-                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
-                    info["seen"] = get_ts()
-                    info["state"] = STATE_BUSY
-                    pipe.multi()
-                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
-                    pipe.execute()
-                    break
-            except redis.WatchError:
-                continue
-
+        db.hsetnx(KEY_AGENT % agent_id, 'state', STATE_BUSY)
+        db.hsetnx(KEY_AGENT % agent_id, 'seen', get_ts())
         return jsonify()
 
 
 class Ping:
-    def POST(self, token_id):
+    def POST(self, agent_id):
+        agent_id = 'A' + agent_id
         db = conn()
-        agent_id = db.get(KEY_TOKEN % token_id)
-        if agent_id is None:
-            abort(404, "Invalid token")
 
-        while True:
-            try:
-                with db.pipeline() as pipe:
-                    pipe.watch(KEY_AGENT % agent_id)
-                    info = json.loads(pipe.get(KEY_AGENT % agent_id))
-                    info["seen"] = get_ts()
-                    pipe.multi()
-                    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
-                    pipe.execute()
-                    break
-            except redis.WatchError:
-                continue
-
+        db.hsetnx(KEY_AGENT % agent_id, 'seen', get_ts())
         return jsonify()
 
 
 def allocate(pipe, agent_id, session_id):
     """Starts multi, doesn't exec"""
     pipe.watch(KEY_AGENT % agent_id)
-    info = json.loads(pipe.get(KEY_AGENT % agent_id))
+    info = pipe.hgetall(KEY_AGENT % agent_id)
+    info['seen'] = int(info['seen'])
 
     pipe.multi()
     pipe.srem(KEY_AVAILABLE, agent_id)
-    if info["state"] != STATE_AVAIL:
+    if info['state'] != STATE_AVAIL:
         return None
 
     # verify the 'seen' so that it's not too old
-    if info["seen"] + SEEN_EXPIRY_TTL < int(time.time()):
-        print("A%s didn't check in - dropping" % agent_id)
-        info["state"] = STATE_INACTIVE
-        pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+    if info['seen'] + SEEN_EXPIRY_TTL < int(time.time()):
+        print("%s didn't check in - dropping" % agent_id)
+        pipe.hset(KEY_AGENT % agent_id, 'state', STATE_INACTIVE)
         return None
 
-    info["state"] = STATE_PENDING
-    info['dispatch_id'] = session_id
-    pipe.set(KEY_AGENT % agent_id, json.dumps(info))
+    pipe.hset(KEY_AGENT % agent_id, 'state', STATE_PENDING)
+    pipe.hset(KEY_AGENT % agent_id, 'dispatch_id', session_id)
     return info
 
 
@@ -273,10 +217,12 @@ def dispatch(input):
                 pipe.sinterstore(alloc_key, lkeys)
                 agent_id = pipe.spop(alloc_key)
                 if not agent_id:
+                    logging.debug("No agent available - queuing")
                     dispatch_later(pipe, input)
                     pipe.delete(alloc_key)
                     pipe.execute()
                 else:
+                    logging.debug("Dispatching to %s" % agent_id)
                     info = allocate(pipe, agent_id, session_id)
                     pipe.delete(alloc_key)
                     pipe.execute()
@@ -316,19 +262,14 @@ class GetAgentsInfo:
     def GET(self):
         db = conn()
         all = []
-        now = int(time.time())
         for agent_id in db.smembers(KEY_ALL):
-            info = db.get(KEY_AGENT % agent_id)
+            info = db.hgetall(KEY_AGENT % agent_id)
             if info:
-                info = json.loads(info)
-                if info["seen"] + SEEN_EXPIRY_TTL < now:
-                    info['state'] = STATE_INACTIVE
-                    db.set(KEY_AGENT % agent_id, json.dumps(info))
                 all.append({'id': agent_id,
                             'nick': info.get('nick', ''),
                             "state": info["state"],
-                            "seen": info["seen"],
-                            "labels": info["labels"]})
+                            "seen": int(info["seen"]),
+                            "labels": info["labels"].split(",")})
         return jsonify(agent_no = len(all),
                        agents = all)
 

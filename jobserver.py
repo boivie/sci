@@ -8,6 +8,7 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
+import logging
 from optparse import OptionParser
 import os
 
@@ -45,6 +46,9 @@ if __name__ == "__main__":
                       help = "path to use")
 
     (opts, args) = parser.parse_args()
+
+    if opts.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     web.config._path = opts.path
     for git_path in get_gits():

@@ -82,10 +82,10 @@ class GetLog:
 
 def send_available(dispatch_id = None, job_result = None):
     web.config.last_status = int(time.time())
-    print("%s checking in (available)" % web.config.token)
+    print("%s checking in (available)" % web.config.node_id)
 
     client = HttpClient("http://127.0.0.1:6697")
-    result = client.call("/agent/available/%s" % web.config.token,
+    result = client.call("/agent/available/%s" % web.config.node_id,
                          input = json.dumps({'id': dispatch_id,
                                              'result': job_result}))
     return result.get('do')
@@ -93,19 +93,19 @@ def send_available(dispatch_id = None, job_result = None):
 
 def send_busy():
     web.config.last_status = int(time.time())
-    print("%s checking in (busy)" % web.config.token)
+    print("%s checking in (busy)" % web.config.node_id)
 
     client = HttpClient("http://127.0.0.1:6697")
-    client.call("/agent/busy/%s" % web.config.token,
+    client.call("/agent/busy/%s" % web.config.node_id,
                 method = 'POST')
 
 
 def send_ping():
     web.config.last_status = int(time.time())
-    print("%s pinging" % web.config.token)
+    print("%s pinging" % web.config.node_id)
 
     client = HttpClient("http://127.0.0.1:6697")
-    client.call("/agent/ping/%s" % web.config.token,
+    client.call("/agent/ping/%s" % web.config.node_id,
                 method = "POST")
 
 
@@ -171,10 +171,9 @@ class ExecutionThread(threading.Thread):
         self.kill_received = False
 
     def run(self):
-        item = send_available()
+        send_available()
         while not self.kill_received:
-            if not item:
-                item = get_item()
+            item = get_item()
 
             session_id = json.loads(item)['session_id']
             session = Session.create(session_id)
@@ -202,7 +201,7 @@ class ExecutionThread(threading.Thread):
                 print("Job terminated")
 
             job_result = session.return_value
-            item = send_available(session_id, job_result)
+            send_available(session_id, job_result)
 
 
 if __name__ == "__main__":
@@ -234,14 +233,14 @@ if __name__ == "__main__":
 
     config = get_config(web.config._path)
     if not config:
-        web.config.node_id = random_sha1()
+        web.config.node_id = 'A' + random_sha1()
         save_config(web.config._path, web.config.node_id)
     else:
         web.config.node_id = config["node_id"]
 
     web.config.port = int(opts.port)
 
-    print("Registering at AHQ and getting token")
+    print("Registering at AHQ")
     client = HttpClient("http://127.0.0.1:6697")
     hostname = "%s-%d" % (os.uname()[1], web.config.port)
     ret = client.call("/agent/register",
@@ -249,9 +248,6 @@ if __name__ == "__main__":
                                           'nick': hostname,
                                           "port": web.config.port,
                                           "labels": ["macos"]}))
-    print("Got token %s" % ret["token"])
-    web.config.token = ret["token"]
-
     print("%s: Running from %s, listening to %d" % (web.config.node_id, web.config._path, web.config.port))
 
     status = StatusThread()

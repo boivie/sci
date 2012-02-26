@@ -16,7 +16,7 @@ if app.debug:
 @app.template_filter('short_id')
 def short_id(s):
     if len(s) != 40:
-        print("Warning: Not an id?", s)
+        logging.debug("Warning: Not an id? %s" % s)
     return s[0:7]
 
 
