@@ -51,7 +51,7 @@ class HttpRequest(object):
             url += "?" + urllib.urlencode(kwargs)
         self.c.request(method, url, input, headers)
         self.r = self.c.getresponse()
-        if self.r.status != 200:
+        if self.r.status < 200 or self.r.status > 299:
             raise HttpError(self.r.status)
 
     def read(self, n = None):

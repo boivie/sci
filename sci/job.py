@@ -173,8 +173,8 @@ class Job(object):
         return ret
 
     def slog(self, item):
-        url = '/slog/%s/%s' % (self.build_id, self.session.id)
-        HttpClient(self.jobserver).call(url, input = item.serialize())
+        url = '/slog/%s' % self.session.id
+        HttpClient(self.jobserver).call(url, input = item.serialize(), raw = True)
 
     def start(self, params = {}):
         """Start a job manually (for testing)

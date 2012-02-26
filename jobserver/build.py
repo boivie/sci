@@ -100,3 +100,7 @@ def set_session_dispatched(db, session_id, agent_id):
 
 def get_build_sessions(db, build_id):
     return db.smembers(KEY_BUILD_SESSIONS % build_id)
+
+
+def get_session_build(db, session_id):
+    return db.hget(KEY_SESSION % session_id, 'build_id')

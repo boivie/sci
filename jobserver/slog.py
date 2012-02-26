@@ -35,9 +35,6 @@ SLOG_HANDLERS = {JobBegun.type: DoJobBegun,
 
 
 def add_slog(db, build_id, session_id, data):
-    # Verify that the build id exists.
-    if not db.exists(KEY_BUILD % build_id):
-        return False
     db.rpush(KEY_SLOG % (build_id, session_id), data)
     li = json.loads(data)
     try:
@@ -46,4 +43,3 @@ def add_slog(db, build_id, session_id, data):
         pass
     else:
         handler(db, build_id, session_id, li)
-    return True
