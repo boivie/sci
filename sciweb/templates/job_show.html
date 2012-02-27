@@ -1,3 +1,4 @@
+{% import 'macros.html' as macros %}
 {% extends "job_base.html" %}
 {% block title %}{{build.number}} - {{build.description}}{% endblock %}
 {% block subcontents %}
@@ -29,9 +30,9 @@
        </dl>
 {% endif %}
        <h3>Log</h3>
-       <ul>
-{% for entry in log %}
-<li>{{entry}}</li>
+       <ul class="unstyled">
+{% for entry in log if entry.s == 1 %}
+{{ macros.log_entry(entry, log) }}
 {% endfor %}
        </ul>
       </div>

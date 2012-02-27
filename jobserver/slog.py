@@ -32,7 +32,7 @@ def add_slog(db, session_id, item):
         item = item.serialize()
 
     li = json.loads(item)
-    li['s'] = session_no
+    li['s'] = int(session_no)
     li['t'] = int(time.time() * 1000)
     db.rpush(KEY_SLOG % build_id, json.dumps(li))
     try:

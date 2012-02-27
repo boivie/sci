@@ -30,15 +30,22 @@ class StepBegun(LogItem):
         self.params = dict(name = name, args = args, kwargs = kwargs)
 
 
-class StepFunDone(LogItem):
-    type = 'step-fun-done'
+class StepJoinBegun(LogItem):
+    type = 'step-join-begun'
 
     def __init__(self, name, time):
         self.params = dict(name = name, time = int(time))
 
 
-class StepJoined(LogItem):
-    type = 'step-joined'
+class StepJoinDone(LogItem):
+    type = 'step-join-done'
+
+    def __init__(self, name, time):
+        self.params = dict(name = name, time = int(time))
+
+
+class StepDone(LogItem):
+    type = 'step-done'
 
     def __init__(self, name, time):
         self.params = dict(name = name, time = int(time))
@@ -77,8 +84,19 @@ class SessionDone(LogItem):
         self.params = dict(result = result)
 
 
-class QueuedSession(LogItem):
-    type = 'queued-session'
+class RunAsync(LogItem):
+    type = 'run-async'
 
-    def __init__(self, session_id):
-        self.params = dict(session_id = session_id)
+    def __init__(self, session_no, step_name, args, kwargs):
+        self.params = dict(session_no = int(session_no),
+                           step_name = step_name,
+                           args = args,
+                           kwargs = kwargs)
+
+
+class AsyncJoined(LogItem):
+    type = 'async-joined'
+
+    def __init__(self, session_no, time):
+        self.params = dict(session_no = int(session_no),
+                           time = int(time))

@@ -15,8 +15,8 @@ from .agents import Agents
 from .session import Session
 from .bootstrap import Bootstrap
 from .http_client import HttpClient
-from .slog import (StepBegun, StepFunDone, StepJoined, JobBegun, JobDone,
-                   JobErrorThrown, SetDescription)
+from .slog import (StepBegun, StepDone, StepJoinBegun, StepJoinDone,
+                   JobBegun, JobDone, JobErrorThrown, SetDescription)
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -47,14 +47,17 @@ class Step(JobFunction):
         self.job._current_step = self
         self.job._print_banner("Step: '%s'" % self.name)
         ret = self.fun(*args, **kwargs)
-        time_fun = time.time()
-        self.job.slog(StepFunDone(self.name, time_fun - time_start))
 
         # Wait for any unfinished detached jobs
         if self.job.agents.should_run():
+            diff = (time.time() - time_start) * 1000
+            self.job.slog(StepJoinBegun(self.name, diff))
             self.job.agents.run()
-            time_joined = time.time()
-            self.job.slog(StepJoined(self.name, time_joined - time_fun))
+            diff = (time.time() - time_start) * 1000
+            self.job.slog(StepJoinDone(self.name, diff))
+
+        diff = (time.time() - time_start) * 1000
+        self.job.slog(StepDone(self.name, diff))
         return ret
 
 

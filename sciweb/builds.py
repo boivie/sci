@@ -1,3 +1,4 @@
+import json
 import sys
 sys.path.append("../..")
 from flask import Blueprint, render_template, url_for, request, redirect, abort
@@ -33,6 +34,36 @@ def show_history(info, id):
                            name = id)
 
 
+def find_same_entry(log, session_no, t):
+    for e in log:
+        if e['s'] == session_no and e['type'] == t:
+            return e
+    return None
+
+
+def find_other_entry(log, session_no, t):
+    for e in log:
+        if e['type'] == t and e['params']['session_no'] == session_no:
+            return e
+    return None
+
+
+def simplify_log(log):
+    result = []
+    for i in range(len(log)):
+        skip = False
+        entry = log[i]
+        if entry['type'] == 'step-begun':
+            entry['end'] = find_same_entry(log[i:], entry['s'], 'step-done')
+        elif entry['type'] == 'step-done':
+            skip = True
+        elif entry['type'] == 'run-async':
+            entry['end'] = find_other_entry(log[i:], entry['params']['session_no'], 'async-joined')
+        if not skip:
+            result.append(entry)
+    return result
+
+
 def show_build(info, id, build_no, active_tab):
     if build_no != 0:
         info = js().call('/build/%s,%d' % (id, build_no))
@@ -41,6 +72,11 @@ def show_build(info, id, build_no, active_tab):
         build_info['recipe_url'] = url_for('recipes.show', id = build_info['recipe_name'])
     else:
         build_info = {}
+
+    log = [json.loads(l) for l in info.get('log', [])]
+    for l in log:
+        l['dt'] = (l['t'] - log[0]['t']) / 1000
+    log = simplify_log(log)
     return render_template('job_show.html',
                            job_url = url_for('.show_job', id = id),
                            name = id,
@@ -48,7 +84,7 @@ def show_build(info, id, build_no, active_tab):
                            active_tab = active_tab,
                            job = info,
                            build = build_info,
-                           log = info.get('log', {}))
+                           log = log)
 
 
 @app.route('/show/<id>', methods = ['GET'])

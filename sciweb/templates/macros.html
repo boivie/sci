@@ -1,0 +1,32 @@
+{% macro fl(entry,ongoing) -%}
+{% if ongoing %}
+<li class="log-line"><a class="log-box" href="#"><i class="icon-refresh"></i></a> {{entry.dt|format_dur}} - {{ caller() }}</li>
+{% else %}
+<li class="log-line"><a class="log-box log-box-done" href="#"><i class="icon-ok icon-white"></i></a> {{entry.dt|format_dur}} - {{ caller() }}</li>
+{% endif %}
+{%- endmacro %}
+
+{% macro log_entry(entry, log) -%}
+{% if entry.type == 'job-begun' %}
+{% call fl(entry, False) %}Job Started{% endcall %}
+{% elif entry.type == 'step-begun' %}
+{% if entry.end %}
+{% call fl(entry, False) %}{{entry.params.name}} (took {{entry.end.params.time|pretty_dur}}){% endcall %}
+{% else %}
+{% call fl(entry, True) %}{{entry.params.name}}{% endcall %}
+{% endif %}
+{% elif entry.type == 'run-async' %}
+{% if entry.end %}
+{% call fl(entry, False) %}{{entry.params.step_name}}({{entry.params.args|format_array}}) (took {{entry.end.params.time|pretty_dur}}){% endcall %}
+{% else %}
+{% call fl(entry, True) %}{{entry.params.step_name}}({{entry.params.args|format_array}}){% endcall %}
+{% endif %}
+{% elif entry.type == 'job-done' %}
+{% call fl(entry, False) %}Job Done{% endcall %}
+{% elif entry.type == 'async-joined' %}
+{% elif entry.type == 'set-description' %}
+{% else %}
+{% call fl(entry) %}{{ entry }}{% endcall %}
+{% endif %}
+</li>
+{%- endmacro %}

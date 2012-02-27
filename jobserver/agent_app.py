@@ -15,7 +15,7 @@ from jobserver.build import STATE_DONE, STATE_QUEUED
 from jobserver.build import set_session_done, set_session_dispatched, set_session_running
 from jobserver.queue import queue, DispatchSession
 from jobserver.slog import add_slog
-from sci.slog import SessionStarted, SessionDone, QueuedSession
+from sci.slog import SessionStarted, SessionDone, RunAsync
 
 urls = (
     '/available/A([0-9a-f]{40})', 'CheckInAvailable',
@@ -227,8 +227,10 @@ class DispatchBuild:
         session_no = create_session(db, input['build_id'], input,
                                     state = STATE_QUEUED)
         session_id = '%s-%s' % (input['build_id'], session_no)
+        item = RunAsync(session_no, input['step_name'],
+                        input['args'], input['kwargs'])
+        add_slog(db, input['parent_session'], item)
         queue(db, DispatchSession(session_id))
-        add_slog(db, input['parent_session'], QueuedSession(session_id))
         return jsonify(session_id = session_id)
 
 

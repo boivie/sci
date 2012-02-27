@@ -20,6 +20,33 @@ def short_id(s):
     return s[0:7]
 
 
+@app.template_filter('format_dur')
+def format_dur(dur):
+    return "%02d:%02d:%02d" % (dur / 3600, (dur % 3600) / 60, dur % 60)
+
+
+@app.template_filter('format_array')
+def format_array(arr):
+    return ", ".join(arr)
+
+
+@app.template_filter('pretty_dur')
+def pretty_dur(dur):
+    if dur < 1000:
+        return "%d ms" % dur
+    elif dur < (60 * 1000):
+        return "%d s" % (dur / 1000)
+    else:
+        dur = int(dur / 1000)
+        hours = int(dur / 3600)
+        minutes = int((dur % 3600) / 60)
+        seconds = dur % 60
+        if hours == 0:
+            return "%d:%d" % (minutes, seconds)
+        else:
+            return "%d:%d:%d" % (hours, minutes, seconds)
+
+
 @app.template_filter('pretty_date')
 def pretty_date(time=False):
     """

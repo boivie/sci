@@ -8,8 +8,9 @@
     :license: Apache License 2.0
 """
 import json
+import time
 from .http_client import HttpClient
-
+from sci.slog import AsyncJoined
 STATE_NONE, STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(4)
 
 
@@ -24,11 +25,13 @@ class Agent(object):
         data = {"build_id": job.build_id,
                 "job_server": job.jobserver,
                 "funname": self.step.fun.__name__,
+                "step_name": self.step.name,
                 "args": self.args,
                 "kwargs": self.kwargs,
                 "env": job.env.serialize(),
                 "labels": ['any'],
                 "parent_session": job.session.id}
+        self.ts_start = time.time()
         res = HttpClient(url).call('/agent/dispatch', input = json.dumps(data))
         self.session_id = res['session_id']
         self.state = STATE_RUNNING
@@ -39,6 +42,9 @@ class Agent(object):
         self.output = res['output']
         self.result = res['result']
         self.state = STATE_DONE
+        session_no = self.session_id.split('-')[-1]
+        diff = (time.time() - self.ts_start) * 1000
+        job.slog(AsyncJoined(session_no, diff))
 
 
 class Agents(object):
