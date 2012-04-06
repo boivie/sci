@@ -61,8 +61,8 @@ class CheckInAvailable:
             set_session_done(db, session_id, data['result'], data['output'])
             add_slog(db, session_id, SessionDone(data['result']))
 
-        db.hset(jdb.KEY_AGENT % agent_id, 'state', jdb.AGENT_STATE_AVAIL)
-        db.hset(jdb.KEY_AGENT % agent_id, 'seen', get_ts())
+        db.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,
+                                                seen = get_ts()))
         # TODO: Race condition -> we may be inside allocate() right now
         db.sadd(jdb.KEY_AVAILABLE, agent_id)
         return jsonify()
@@ -79,8 +79,8 @@ class CheckInBusy:
             set_session_running(db, session_id)
             add_slog(db, session_id, SessionStarted())
 
-        db.hsetnx(jdb.KEY_AGENT % agent_id, 'state', jdb.AGENT_STATE_BUSY)
-        db.hsetnx(jdb.KEY_AGENT % agent_id, 'seen', get_ts())
+        db.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_BUSY,
+                                                seen = get_ts()))
         return jsonify()
 
 
@@ -88,8 +88,7 @@ class Ping:
     def POST(self, agent_id):
         agent_id = 'A' + agent_id
         db = jdb.conn()
-
-        db.hsetnx(jdb.KEY_AGENT % agent_id, 'seen', get_ts())
+        db.hset(jdb.KEY_AGENT % agent_id, 'seen', get_ts())
         return jsonify()
 
 
