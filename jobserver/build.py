@@ -12,13 +12,17 @@ KEY_BUILD_SESSIONS = 'sessions:%s'
 KEY_SESSION = 'session:%s'
 
 # The session is created, but not yet scheduled to run
-BUILD_STATE_NEW = 'new'
-BUILD_STATE_QUEUED = 'queued'
+SESSION_STATE_NEW = 'new'
+# The session is scheduled to be handled by the backend
+SESSION_STATE_TO_BACKEND = 'to-backend'
+# No agent can processed the session, so it's queued and awaiting an agent
+SESSION_STATE_QUEUED = 'queued'
 # The session has been dispatched to a agent, but it has not yet ack'ed.
-BUILD_STATE_DISPATCHED = 'dispatched'
-BUILD_STATE_RUNNING = 'running'
+SESSION_STATE_TO_AGENT = 'to-agent'
+# The session has been reported to be running
+SESSION_STATE_RUNNING = 'running'
 # The agent has finished (successfully, or with errors) - see RESULT_
-BUILD_STATE_DONE = 'done'
+SESSION_STATE_DONE = 'done'
 
 RESULT_UNKNOWN = 'unknown'
 RESULT_SUCCESS = 'success'
@@ -43,12 +47,13 @@ def new_build(db, job, job_ref, parameters = {}):
                  number = 0,
                  description = '',
                  created = now,
-                 max_session = 0,
+                 session_id = '%s-1' % build_id,
+                 max_session = 0,  # will be incremented to 1 below
                  parameters = json.dumps(parameters))
     db.hmset(KEY_BUILD % build_id, build)
 
+    # Create the main session
     create_session(db, build_id)
-    build['session_id'] = build_id + '-1'
 
     number = db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
     db.hset(KEY_BUILD % build_id, 'number', number)
@@ -64,7 +69,7 @@ def get_build_info(db, build_id):
     return build
 
 
-def create_session(db, build_id, input = None, state = BUILD_STATE_NEW):
+def create_session(db, build_id, input = None, state = SESSION_STATE_NEW):
     session = dict(created = get_ts(),
                    state = state,
                    result = RESULT_UNKNOWN,
@@ -87,19 +92,19 @@ def get_session(db, session_id):
 
 
 def set_session_done(db, session_id, result, output):
-    db.hmset(KEY_SESSION % session_id, {'state': BUILD_STATE_DONE,
+    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_DONE,
                                         'result': result,
                                         'output': json.dumps(output)})
 
 
 def set_session_queued(db, session_id):
-    db.hmset(KEY_SESSION % session_id, {'state': BUILD_STATE_QUEUED})
+    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_QUEUED})
 
 
-def set_session_dispatched(db, session_id, agent_id):
-    db.hmset(KEY_SESSION % session_id, {'state': BUILD_STATE_DISPATCHED,
+def set_session_to_agent(db, session_id, agent_id):
+    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_TO_AGENT,
                                         'agent': agent_id})
 
 
 def set_session_running(db, session_id):
-    db.hmset(KEY_SESSION % session_id, {'state': BUILD_STATE_RUNNING})
+    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_RUNNING})

@@ -7,32 +7,29 @@ from jobserver.queue import StartBuildQ, DispatchSession, AgentAvailable
 from sci.http_client import HttpClient
 from sci.utils import random_sha1
 from jobserver.build import get_session
-from jobserver.build import set_session_dispatched
+from jobserver.build import set_session_to_agent, set_session_queued
 import jobserver.db as jdb
-from jobserver.build import BUILD_STATE_QUEUED
 
 
 def dispatch_later(pipe, input):
     """Starts multi, doesn't exec"""
     session_id = input['session_id']
     pipe.multi()
-    pipe.set(jdb.KEY_DISPATCH_INFO % session_id,
-             json.dumps({'labels': input['labels'],
-                         'data': input,
-                         'state': BUILD_STATE_QUEUED}))
     ts = float(time.time() * 1000)
+    set_session_queued(pipe, session_id)
     pipe.zadd(jdb.KEY_QUEUE, ts, session_id)
     return session_id
 
 
 def do_dispatch(db, agent_id, agent_url, input):
-    print("AGENT URL: '%s'" % agent_url)
+    print("DISPATCH TO AGENT, URL: '%s'" % agent_url)
     client = HttpClient(agent_url)
     client.call('/dispatch', input = json.dumps(input))
 
 
 def allocate(pipe, agent_id, session_id):
     """Starts multi, doesn't exec"""
+    # The agent may become inactive
     pipe.watch(jdb.KEY_AGENT % agent_id)
     info = pipe.hgetall(jdb.KEY_AGENT % agent_id)
     info['seen'] = int(info['seen'])
@@ -49,7 +46,7 @@ def allocate(pipe, agent_id, session_id):
     #    return None
 
     pipe.hset(jdb.KEY_AGENT % agent_id, 'state', jdb.AGENT_STATE_PENDING)
-    pipe.hset(jdb.KEY_AGENT % agent_id, 'dispatch_id', session_id)
+    pipe.hset(jdb.KEY_AGENT % agent_id, 'session', session_id)
     return info
 
 
@@ -85,7 +82,7 @@ def dispatch_be(session_id):
                     if not info:
                         continue
                     url = "http://%s:%s" % (info["ip"], info["port"])
-                    set_session_dispatched(db, session_id, agent_id)
+                    set_session_to_agent(db, session_id, agent_id)
                     input['session_id'] = session_id
                     do_dispatch(db, agent_id, url, input)
                 return

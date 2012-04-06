@@ -8,7 +8,7 @@ import jobserver.db as jdb
 from jobserver.webutils import abort, jsonify
 from jobserver.build import create_session, get_session
 from jobserver.build import set_session_done, set_session_running
-from jobserver.build import BUILD_STATE_QUEUED, BUILD_STATE_DONE
+from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
 from jobserver.queue import queue, DispatchSession, AgentAvailable
 from jobserver.slog import add_slog
 from sci.slog import SessionStarted, SessionDone, RunAsync
@@ -98,7 +98,7 @@ class DispatchBuild:
         db = jdb.conn()
         input = json.loads(web.data())
         session_no = create_session(db, input['build_id'], input,
-                                    state = BUILD_STATE_QUEUED)
+                                    state = SESSION_STATE_TO_BACKEND)
         session_id = '%s-%s' % (input['build_id'], session_no)
         item = RunAsync(session_no, input['step_name'],
                         input['args'], input['kwargs'])
@@ -115,7 +115,7 @@ class GetSessionResult:
             info = get_session(db, session_id)
             if not info:
                 abort(404, "Session ID not found")
-            if info['state'] == BUILD_STATE_DONE:
+            if info['state'] == SESSION_STATE_DONE:
                 return jsonify(result = info['result'],
                                output = info['output'])
             time.sleep(0.5)
