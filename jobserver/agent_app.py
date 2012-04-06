@@ -97,12 +97,15 @@ class DispatchBuild:
     def POST(self):
         db = jdb.conn()
         input = json.loads(web.data())
-        session_no = create_session(db, input['build_id'], input,
+        session_no = create_session(db, input['build_id'],
+                                    parent = input['parent'],
+                                    labels = input['labels'],
+                                    run_info = input['run_info'],
                                     state = SESSION_STATE_TO_BACKEND)
         session_id = '%s-%s' % (input['build_id'], session_no)
-        item = RunAsync(session_no, input['step_name'],
-                        input['args'], input['kwargs'])
-        add_slog(db, input['parent_session'], item)
+        item = RunAsync(session_no, input['run_info']['step_name'],
+                        input['run_info']['args'], input['run_info']['kwargs'])
+        add_slog(db, input['parent'], item)
         queue(db, DispatchSession(session_id))
         return jsonify(session_id = session_id)
 

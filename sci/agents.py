@@ -22,15 +22,15 @@ class Agent(object):
         self.state = STATE_NONE
 
     def run(self, url, job):
-        data = {"build_id": job.build_id,
-                "job_server": job.jobserver,
-                "funname": self.step.fun.__name__,
-                "step_name": self.step.name,
-                "args": self.args,
-                "kwargs": self.kwargs,
-                "env": job.env.serialize(),
-                "labels": ['any'],
-                "parent_session": job.session.id}
+        data = {'build_id': job.build_id,
+                'job_server': job.jobserver,
+                'labels': ['any'],
+                'parent': job.session.id,
+                'run_info': {'step_fun': self.step.fun.__name__,
+                             'step_name': self.step.name,
+                             'args': self.args,
+                             'kwargs': self.kwargs,
+                             'env': job.env.serialize()}}
         self.ts_start = time.time()
         res = HttpClient(url).call('/agent/dispatch', input = json.dumps(data))
         self.session_id = res['session_id']

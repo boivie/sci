@@ -69,12 +69,15 @@ def get_build_info(db, build_id):
     return build
 
 
-def create_session(db, build_id, input = None, state = SESSION_STATE_NEW):
+def create_session(db, build_id, parent = None, labels = [],
+                   run_info = None, state = SESSION_STATE_NEW):
     session = dict(created = get_ts(),
                    state = state,
                    result = RESULT_UNKNOWN,
-                   input = json.dumps(input),
+                   parent = parent,
+                   labels = ",".join(labels),
                    agent = None,
+                   run_info = json.dumps(run_info),
                    output = json.dumps(None))
     session_no = db.hincrby(KEY_BUILD % build_id, 'max_session', 1)
     session_id = '%s-%s' % (build_id, session_no)
@@ -86,7 +89,8 @@ def get_session(db, session_id):
     session = db.hgetall(KEY_SESSION % session_id)
     if not session:
         return None
-    session['input'] = json.loads(session['input'])
+    session['labels'] = session['labels'].split(',')
+    session['run_info'] = json.loads(session['run_info'])
     session['output'] = json.loads(session['output'])
     return session
 

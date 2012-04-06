@@ -13,5 +13,7 @@ data = json.loads(sys.stdin.read())
 session_id = sys.argv[1]
 session = Session.load(session_id)
 
-Bootstrap.run(session, data["build_id"], data["job_server"], data["funname"],
-              args = data["args"], kwargs = data["kwargs"], env = data["env"])
+run_info = data['run_info']
+Bootstrap.run(session, data['build_id'], data['job_server'],
+              run_info['step_fun'], args = run_info['args'],
+              kwargs = run_info['kwargs'], env = run_info['env'])

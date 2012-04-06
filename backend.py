@@ -10,10 +10,11 @@ from jobserver.build import get_session
 from jobserver.build import set_session_to_agent, set_session_queued
 import jobserver.db as jdb
 
+JOBSERVER_URL = "http://localhost:6697"
 
-def dispatch_later(pipe, input):
+
+def dispatch_later(pipe, session_id):
     """Starts multi, doesn't exec"""
-    session_id = input['session_id']
     pipe.multi()
     ts = float(time.time() * 1000)
     set_session_queued(pipe, session_id)
@@ -21,7 +22,7 @@ def dispatch_later(pipe, input):
     return session_id
 
 
-def do_dispatch(db, agent_id, agent_url, input):
+def do_dispatch(db, agent_url, input):
     print("DISPATCH TO AGENT, URL: '%s'" % agent_url)
     client = HttpClient(agent_url)
     client.call('/dispatch', input = json.dumps(input))
@@ -53,10 +54,8 @@ def allocate(pipe, agent_id, session_id):
 def dispatch_be(session_id):
     db = jdb.conn()
     session = get_session(db, session_id)
-    input = session['input']
-
-    labels = input['labels']
-    labels.remove("any")
+    labels = session['labels']
+    labels.remove('any')
     lkeys = [jdb.KEY_LABEL % label for label in labels]
     lkeys.append(jdb.KEY_AVAILABLE)
 
@@ -70,7 +69,7 @@ def dispatch_be(session_id):
                 agent_id = pipe.spop(alloc_key)
                 if not agent_id:
                     logging.debug("No agent available - queuing")
-                    dispatch_later(pipe, input)
+                    dispatch_later(pipe, session_id)
                     pipe.delete(alloc_key)
                     pipe.execute()
                 else:
@@ -83,8 +82,11 @@ def dispatch_be(session_id):
                         continue
                     url = "http://%s:%s" % (info["ip"], info["port"])
                     set_session_to_agent(db, session_id, agent_id)
-                    input['session_id'] = session_id
-                    do_dispatch(db, agent_id, url, input)
+                    input = dict(session_id = session_id,
+                                 build_id = session_id.split('-')[0],
+                                 job_server = JOBSERVER_URL,
+                                 run_info = session['run_info'])
+                    do_dispatch(db, url, input)
                 return
             except redis.WatchError:
                 continue
@@ -103,7 +105,7 @@ def worker(msg):
         client = HttpClient("http://localhost:6697")
         data = dict(build_id = item['params']['build_id'],
                     session_id = item['params']['session_id'][1:],
-                    job_server = 'http://localhost:6697',
+                    job_server = JOBSERVER_URL,
                     funname = None,
                     env = None,
                     args = [],
