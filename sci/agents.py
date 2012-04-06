@@ -24,7 +24,7 @@ class Agent(object):
     def run(self, url, job):
         data = {'build_id': job.build_id,
                 'job_server': job.jobserver,
-                'labels': ['any'],
+                'labels': [],
                 'parent': job.session.id,
                 'run_info': {'step_fun': self.step.fun.__name__,
                              'step_name': self.step.name,

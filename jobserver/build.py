@@ -90,6 +90,7 @@ def get_session(db, session_id):
     if not session:
         return None
     session['labels'] = session['labels'].split(',')
+    session['labels'].remove('')  # if labels is empty
     session['run_info'] = json.loads(session['run_info'])
     session['output'] = json.loads(session['output'])
     return session
@@ -112,3 +113,9 @@ def set_session_to_agent(db, session_id, agent_id):
 
 def set_session_running(db, session_id):
     db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_RUNNING})
+
+
+def get_session_labels(db, session_id):
+    labels = set(db.hget(KEY_SESSION % session_id, 'labels').split(','))
+    labels.remove('')
+    return labels

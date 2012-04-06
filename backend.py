@@ -6,7 +6,7 @@ import redis
 from jobserver.queue import StartBuildQ, DispatchSession, AgentAvailable
 from sci.http_client import HttpClient
 from sci.utils import random_sha1
-from jobserver.build import get_session
+from jobserver.build import get_session, get_session_labels
 from jobserver.build import set_session_to_agent, set_session_queued
 import jobserver.db as jdb
 
@@ -18,12 +18,19 @@ def dispatch_later(pipe, session_id):
     pipe.multi()
     ts = float(time.time() * 1000)
     set_session_queued(pipe, session_id)
-    pipe.zadd(jdb.KEY_QUEUE, ts, session_id)
+    pipe.zadd(jdb.KEY_QUEUED_SESSIONS, ts, session_id)
     return session_id
 
 
-def do_dispatch(db, agent_url, input):
+def do_dispatch(db, agent_id, agent_info, session_id, session):
+    agent_url = "http://%s:%s" % (agent_info["ip"], agent_info["port"])
     print("DISPATCH TO AGENT, URL: '%s'" % agent_url)
+
+    set_session_to_agent(db, session_id, agent_id)
+    input = dict(session_id = session_id,
+                 build_id = session_id.split('-')[0],
+                 job_server = JOBSERVER_URL,
+                 run_info = session['run_info'])
     client = HttpClient(agent_url)
     client.call('/dispatch', input = json.dumps(input))
 
@@ -46,17 +53,15 @@ def allocate(pipe, agent_id, session_id):
     #    pipe.hset(jdb.KEY_AGENT % agent_id, 'state', STATE_INACTIVE)
     #    return None
 
-    pipe.hset(jdb.KEY_AGENT % agent_id, 'state', jdb.AGENT_STATE_PENDING)
-    pipe.hset(jdb.KEY_AGENT % agent_id, 'session', session_id)
+    pipe.hmset(jdb.KEY_AGENT % agent_id, {'state': jdb.AGENT_STATE_PENDING,
+                                          'session': session_id})
     return info
 
 
 def dispatch_be(session_id):
     db = jdb.conn()
     session = get_session(db, session_id)
-    labels = session['labels']
-    labels.remove('any')
-    lkeys = [jdb.KEY_LABEL % label for label in labels]
+    lkeys = [jdb.KEY_LABEL % label for label in session['labels']]
     lkeys.append(jdb.KEY_AVAILABLE)
 
     alloc_key = jdb.KEY_ALLOCATION % random_sha1()
@@ -74,19 +79,14 @@ def dispatch_be(session_id):
                     pipe.execute()
                 else:
                     logging.debug("Dispatching to %s" % agent_id)
-                    info = allocate(pipe, agent_id, session_id)
+                    agent_info = allocate(pipe, agent_id, session_id)
                     pipe.delete(alloc_key)
                     pipe.execute()
 
-                    if not info:
+                    if not agent_info:
                         continue
-                    url = "http://%s:%s" % (info["ip"], info["port"])
-                    set_session_to_agent(db, session_id, agent_id)
-                    input = dict(session_id = session_id,
-                                 build_id = session_id.split('-')[0],
-                                 job_server = JOBSERVER_URL,
-                                 run_info = session['run_info'])
-                    do_dispatch(db, url, input)
+
+                    do_dispatch(db, agent_id, agent_info, session_id, session)
                 return
             except redis.WatchError:
                 continue
@@ -94,8 +94,28 @@ def dispatch_be(session_id):
 
 def handle_agent_available(agent_id):
     db = jdb.conn()
-    # TODO: Before adding it here, match it to the queue
-    db.sadd(jdb.KEY_AVAILABLE, agent_id)
+    matched = None
+    agent_labels = set(db.hget(jdb.KEY_AGENT % agent_id, 'labels').split(','))
+    queued = db.zrange(jdb.KEY_QUEUED_SESSIONS, 0, -1)
+    if queued:
+        logging.info("Agent %s available - matching against "
+                     "%d queued sessions" % (agent_id, len(queued)))
+        for session_id in queued:
+            labels = get_session_labels(db, session_id)
+            if labels.issubset(agent_labels):
+                matched = session_id
+                break
+        db.zrem(jdb.KEY_QUEUED_SESSIONS, matched)
+        logging.debug("Matched against %s" % matched)
+    else:
+        logging.info("Agent %s available - nothing queued." % agent_id)
+
+    if matched:
+        session = get_session(db, matched)
+        agent_info = db.hgetall(jdb.KEY_AGENT % agent_id)
+        do_dispatch(db, agent_id, agent_info, matched, session)
+    else:
+        db.sadd(jdb.KEY_AVAILABLE, agent_id)
 
 
 def worker(msg):
@@ -109,7 +129,7 @@ def worker(msg):
                     funname = None,
                     env = None,
                     args = [],
-                    labels = ['any'],
+                    labels = [],
                     kwargs = {})
         client.call('/agent/dispatch', input = json.dumps(data))
 
