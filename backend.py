@@ -3,7 +3,7 @@ import json, logging, sys, time
 
 import redis
 
-from jobserver.queue import StartBuildQ, DispatchSession
+from jobserver.queue import StartBuildQ, DispatchSession, AgentAvailable
 from sci.http_client import HttpClient
 from sci.utils import random_sha1
 from jobserver.build import get_session
@@ -93,6 +93,12 @@ def dispatch_be(session_id):
                 continue
 
 
+def handle_agent_available(agent_id):
+    db = jdb.conn()
+    # TODO: Before adding it here, match it to the queue
+    db.sadd(jdb.KEY_AVAILABLE, agent_id)
+
+
 def worker(msg):
     item = json.loads(msg)
     logging.debug("Got msg '%s'" % item['type'])
@@ -110,6 +116,9 @@ def worker(msg):
 
     elif item['type'] == DispatchSession.type:
         dispatch_be(item['params']['session_id'])
+
+    elif item['type'] == AgentAvailable.type:
+        handle_agent_available(item['params']['agent_id'])
 
 
 if __name__ == '__main__':

@@ -28,6 +28,13 @@ class DispatchSession(QueueItem):
         self.params = dict(session_id = session_id)
 
 
+class AgentAvailable(QueueItem):
+    type = 'agent-avail'
+
+    def __init__(self, agent_id):
+        self.params = dict(agent_id = agent_id)
+
+
 def queue(db, item, front = False):
     if front:
         db.lpush(KEY_QUEUE, item.serialize())

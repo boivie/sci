@@ -9,7 +9,7 @@ from jobserver.webutils import abort, jsonify
 from jobserver.build import create_session, get_session
 from jobserver.build import set_session_done, set_session_running
 from jobserver.build import BUILD_STATE_QUEUED, BUILD_STATE_DONE
-from jobserver.queue import queue, DispatchSession
+from jobserver.queue import queue, DispatchSession, AgentAvailable
 from jobserver.slog import add_slog
 from sci.slog import SessionStarted, SessionDone, RunAsync
 
@@ -63,8 +63,9 @@ class CheckInAvailable:
 
         db.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,
                                                 seen = get_ts()))
-        # TODO: Race condition -> we may be inside allocate() right now
-        db.sadd(jdb.KEY_AVAILABLE, agent_id)
+        # To avoid race condition and slow computations, we let the backend
+        # assign a new job to this slave, or set it as available.
+        queue(db, AgentAvailable(agent_id))
         return jsonify()
 
 
