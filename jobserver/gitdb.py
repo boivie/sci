@@ -4,6 +4,8 @@ from dulwich.repo import Repo
 from dulwich.objects import Blob, Tree, Commit, parse_timezone
 import web
 
+from jobserver.utils import get_ts
+
 GIT_CONFIG = 'config.git'
 AUTHOR = 'SCI <sci@example.com>'
 
