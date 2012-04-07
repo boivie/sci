@@ -10,7 +10,6 @@
 """
 import os, shutil, imp, sys, socket
 from datetime import datetime
-from .config import Config
 from .session import Session
 from .environment import Environment
 from .http_client import HttpClient, HttpRequest
@@ -67,16 +66,11 @@ class Bootstrap(object):
                 env[name] = param['default']
 
     @classmethod
-    def create_env(cls, metadata, parameters, config_fname,
-                   build_id, build_name):
+    def create_env(cls, metadata, parameters, build_id, build_name):
         env = Environment()
 
         # Set provided parameters
         Bootstrap.handle_parameters(env, parameters, metadata)
-
-        config = Config.from_pyfile(config_fname)
-        if config:
-            env.merge(config)
 
         env.define("SCI_BUILD_ID", "The unique build identifier",
                    read_only = True, source = "initial environment",
@@ -112,10 +106,6 @@ class Bootstrap(object):
         with open(recipe_fname, 'w') as f:
             f.write(recipe['contents'])
 
-        # Fetch configs
-        config = os.path.join(session.path, 'config.py')
-        Bootstrap.get_url(jobserver, '/config/master.txt', config)
-
         if env:
             env = Environment.deserialize(env)
         else:
@@ -123,7 +113,7 @@ class Bootstrap(object):
                                     build_info['number'])
             env = Bootstrap.create_env(recipe['metadata'],
                                        build_info['parameters'],
-                                       config, build_id, build_name)
+                                       build_id, build_name)
 
         mod = imp.new_module('recipe')
         mod.__file__ = recipe_fname

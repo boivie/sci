@@ -18,9 +18,23 @@
 #    description: The products to build (will be guessed if not specified)
 #    type: array
 #
+#  MANIFEST_URL:
+#    description: Manifest URL
+#    default: git://localhost/scitest/manifest.git
+#
 #  MANIFEST_FILE:
 #    description: Manifest filename
 #    default: default.xml
+#
+#  REPO_SYNC_JOBS:
+#    description: The number of parallel connections when fetching source
+#                 code using the repo tool.
+#    default: 4
+#
+#  NUMBER_CPUS:
+#    description: The number of CPUs on this machine
+#    read-only: true
+#    default: 4
 #
 #  VARIANTS:
 #    description: Variants to build
@@ -31,108 +45,108 @@
 import time
 from sci import Job
 
-job = Job(__name__, debug = True)
+build = Job(__name__, debug = True)
 
 
-@job.default("PRODUCTS")
+@build.default("PRODUCTS")
 def get_products():
     """A function that will be evaluated to get the default
        value for 'products' in case it's not specified"""
 
-    if "donut" in job.env['BRANCH']:
+    if "donut" in build.env['BRANCH']:
         return ["g1", "emulator"]
-    if "eclair" in job.env['BRANCH']:
+    if "eclair" in build.env['BRANCH']:
         return ["droid", "nexus_one", "emulator"]
-    if "gingerbread" in job.env['BRANCH']:
+    if "gingerbread" in build.env['BRANCH']:
         return ["nexus_one", "nexus_s", "emulator"]
-    job.error("Don't know which products to build!")
+    build.error("Don't know which products to build!")
 
 
-@job.default("BUILD_ID_PREFIX")
+@build.default("BUILD_ID_PREFIX")
 def default_build_id_prefix():
-    return job.env['BRANCH'].upper().replace("-", "_")
+    return build.env['BRANCH'].upper().replace("-", "_")
 
 
-@job.step("Create Build ID")
+@build.step("Create Build ID")
 def create_build_id():
-    build_id = job.env['BUILD_ID_PREFIX'] + "_" + time.strftime("%Y%m%d_%H%M%S")
+    build_id = build.env['BUILD_ID_PREFIX'] + "_" + time.strftime("%Y%m%d_%H%M%S")
     return build_id
 
 
-@job.step("Create Static Manifest")
+@build.step("Create Static Manifest")
 def create_manifest():
     """These commands will automatically run in a temporary directory
        that will be wiped once the entire job finishes"""
-    job.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}} -m {{MANIFEST_FILE}}")
-    job.run("repo sync --jobs={{SYNC_JOBS}}", name = "sync")
-    job.run("repo manifest -r -o static_manifest.xml")
+    build.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}} -m {{MANIFEST_FILE}}")
+    build.run("repo sync --jobs={{REPO_SYNC_JOBS}}", name = "sync")
+    build.run("repo manifest -r -o static_manifest.xml")
 
     # Upload the result of this step to the 'file storage node'
-    job.artifacts.add("static_manifest.xml")
+    build.artifacts.add("static_manifest.xml")
 
 
-@job.step("Get source code")
+@build.step("Get source code")
 def get_source():
-    job.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}}")
-    job.run("cp static_manifest.xml .repo/manifest.xml")
-    job.run("repo sync --jobs={{SYNC_JOBS}}")
+    build.run("repo init -u {{MANIFEST_URL}} -b {{BRANCH}}")
+    build.run("cp static_manifest.xml .repo/manifest.xml")
+    build.run("repo sync --jobs={{REPO_SYNC_JOBS}}")
 
 
-@job.step("Build Android")
+@build.step("Build Android")
 def build_android():
-    job.run("""
+    build.run("""
 . build/envsetup.sh
 lunch {{PRODUCT}}-{{VARIANT}}
-make -j{{JOB_CPUS}}""")
+make -j{{NUMBER_CPUS}}""")
 
 
-@job.step("ZIP resulted files")
+@build.step("ZIP resulted files")
 def zip_result():
     zip_file = "result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip"
     input_files = "out/target/product/{{PRODUCT}}/*.img"
 
-    job.artifacts.create_zip(zip_file, input_files)
-    return job.format(zip_file)
+    build.artifacts.create_zip(zip_file, input_files)
+    return build.format(zip_file)
 
 
-@job.step("Run single matrix job")
+@build.step("Run single matrix job")
 def run_single_matrix_job(product, variant):
     """This job will be running on a separate machine, in parallel with
        a lot of other similar jobs. It will perform a few build steps."""
-    job.env["PRODUCT"] = product
-    job.env["VARIANT"] = variant
-    job.artifacts.get("static_manifest.xml")
+    build.env["PRODUCT"] = product
+    build.env["VARIANT"] = variant
+    build.artifacts.get("static_manifest.xml")
 
     get_source()
     build_android()
     return zip_result()
 
 
-@job.step("Run matrix jobs")
+@build.step("Run matrix jobs")
 def run_matrix_jobs():
     """Running jobs asynchronously"""
-    for product in job.env["PRODUCTS"]:
-        for variant in job.env["VARIANTS"]:
-            job.agents.async(run_single_matrix_job, args = [product, variant])
+    for product in build.env["PRODUCTS"]:
+        for variant in build.env["VARIANTS"]:
+            build.agents.async(run_single_matrix_job, args = [product, variant])
 
-    for result in job.agents.run():
+    for result in build.agents.run():
         print("Result: " + result)
 
 
-@job.step("Send Report")
+@build.step("Send Report")
 def send_report():
     pass
 
 
-@job.main()
+@build.main()
 def main():
     """This is the job's entry point."""
-    job.env["BUILD_ID"] = create_build_id()
-    job.description = "{{BUILD_ID}}"
+    build.env["BUILD_ID"] = create_build_id()
+    build.description = "{{BUILD_ID}}"
     create_manifest()
     run_matrix_jobs()
     send_report()
 
 
 if __name__ == "__main__":
-    job.start()
+    build.start()

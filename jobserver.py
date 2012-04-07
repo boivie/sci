@@ -20,11 +20,9 @@ from jobserver.build_app import build_app
 from jobserver.slog_app import slog_app
 from jobserver.job_app import job_app
 from jobserver.recipe_app import recipe_app
-from jobserver.config_app import config_app
 from jobserver.agent_app import agent_app
 
 urls = (
-    '/config', config_app,
     '/build',  build_app,
     '/slog',   slog_app,
     '/job',    job_app,
