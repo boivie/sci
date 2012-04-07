@@ -22,9 +22,6 @@
 #    description: Manifest filename
 #    default: default.xml
 #
-#  PRODUCTS:
-#    description: Products to build
-#
 #  VARIANTS:
 #    description: Variants to build
 #    type: checkbox
