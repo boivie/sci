@@ -16,7 +16,9 @@
 {% if build.result == 'success' %}
 	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
 {% elif build.result == 'failed' %}
-	<div class="alert alert-error">This build finished with errors.</div>
+	<div class="alert alert-error"><strong>Failed!</strong> This build finished with errors.</div>
+{% elif build.result == 'error' %}
+	<div class="alert alert-error"><strong>Danger, Will Robinson!</strong> This build finished with errors.</div>
 {% elif build.result == 'aborted' %}
 	<div class="alert alert-error">This build was aborted.</div>
 {% endif %}

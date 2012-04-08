@@ -23,8 +23,11 @@
 {% endif %}
 {% elif entry.type == 'job-done' %}
 {% call fl(entry, False) %}Job Done{% endcall %}
+{% elif entry.type == 'job-error' %}
+{% call fl(entry, False) %}ERROR: {{entry.params.what}}{% endcall %}
 {% elif entry.type == 'async-joined' %}
 {% elif entry.type == 'set-description' %}
+{% elif entry.type == 'session-done' %}
 {% else %}
 {% call fl(entry) %}{{ entry }}{% endcall %}
 {% endif %}

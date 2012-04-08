@@ -21,6 +21,9 @@
 {% elif item.result == 'failed' %}
 <a class="btn btn-small btn-danger" href="{{job_url}},{{item.number}}">
 <i class="icon-remove icon-white"></i>
+{% elif item.result == 'error' %}
+<a class="btn btn-small btn-danger" href="{{job_url}},{{item.number}}">
+<i class="icon-remove icon-white"></i>
 {% elif item.result == 'aborted' %}
 <a class="btn btn-small btn-danger" href="{{job_url}},{{item.number}}">
 <i class="icon-remove icon-white"></i>
