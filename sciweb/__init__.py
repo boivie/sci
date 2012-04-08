@@ -1,5 +1,5 @@
 from flask import Flask
-import logging, types
+import json, logging, types
 from recipes import app as recipes_app
 from agents import app as agents_app
 from builds import app as builds_app
@@ -11,6 +11,11 @@ app.register_blueprint(builds_app, url_prefix='/builds')
 
 if app.debug:
     logging.basicConfig(level=logging.DEBUG)
+
+
+@app.template_filter('json')
+def to_json(obj):
+    return json.dumps(obj)
 
 
 @app.template_filter('short_id')

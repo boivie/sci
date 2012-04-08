@@ -16,6 +16,43 @@ def edit(id):
     return "Edit"
 
 
+@app.route('/start/<id>', methods = ['POST'])
+def start(id):
+    # Gather build parameters
+    parameters = {}
+    for name in request.form:
+        if name.startswith("param_"):
+            parameters[name[6:]] = request.form[name]
+    data = {'parameters': parameters}
+    info = js().call('/build/start/%s' % id, input = data)
+    print(info)
+    return "Build ID %s" % info['id']
+
+
+def show_start(info, id):
+    rref = info['settings']['recipe_name']
+    if info['settings']['recipe_ref']:
+        rref = info['settings']['recipe_ref']
+    recipe = js().call('/recipe/%s.json' % rref)
+    params = []
+    for k, v in recipe['metadata']['Parameters'].iteritems():
+        v['name'] = k
+        v['required'] = v.get('required', False)
+        v['read-only'] = v.get('read-only', False)
+        v['def'] = v.get('default', '')
+        params.append(v)
+
+    params.sort(lambda a, b: cmp(a['name'], b['name']))
+
+    return render_template('job_start.html',
+                           job_url = url_for('.show_job', id = id),
+                           name = id,
+                           active_tab = 'start',
+                           params = params,
+                           post_url = url_for('.start', id = id),
+                           job = info)
+
+
 def show_settings(info, id):
     info['settings']['recipe_url'] = url_for('recipes.show',
                                              id = info['settings']['recipe_name'])
@@ -94,7 +131,9 @@ def show_job(id):
     show = args[1] if len(args) > 1 else 'latest'
 
     info = js().call('/job/%s,queue,history' % id)
-    if show == 'settings':
+    if show == 'start':
+        return show_start(info, id)
+    elif show == 'settings':
         return show_settings(info, id)
     if show == 'latest':
         return show_build(info, id, info.get('latest_no', 0), 'latest')

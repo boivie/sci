@@ -1,0 +1,101 @@
+{% extends "job_base.html" %}
+{% block subcontents %}
+{% raw %}
+   <script id="parameter" type="text/x-jquery-tmpl"> 
+       <div id="param_${name}" class="control-group">
+         <label class="control-label" for="param_${name}"> ${name}</label>
+         <div class="controls">
+	   <input type="text" class="input-xlarge" name="param_${name}" value="${def}">
+         <p class="help-block">${description}</p>
+         </div>
+       </div>
+   </script>
+
+   <script id="inactive-field" type="text/x-jquery-tmpl">
+     <li id="fld_${name}" class="fieldrow">
+       <a class="btn" href="javascript:make_active('${name}')">
+	 <i class="icon-arrow-left"></i> ${name}
+       </a>
+     </li>
+   </script>
+   <script id="active-field" type="text/x-jquery-tmpl">
+     <li id="fld_${name}" class="fieldrow">
+       <a class="btn btn-info active" href="javascript:make_active('${name}')">
+	 <i class="icon-arrow-right icon-white"></i> ${name}
+       </a>
+     </li>
+   </script>
+   <script id="required-field" type="text/x-jquery-tmpl">
+     <li id="fld_${name}" class="fieldrow">
+       <a class="btn btn-info disabled">
+	 <i class="icon-lock icon-white"></i> ${name}
+       </a>
+     </li>
+   </script>
+
+{% endraw %}
+   <div class="row">
+     <div class="span7">
+       <form class="form-horizontal" method="POST" action="{{post_url}}">
+         <fieldset>
+           <legend>Build Parameters</legend>
+	   <div class="control-group" id="req_params">
+	   </div>
+         </fieldset>
+	 <div class="form-actions">
+           <button type="submit" class="btn btn-primary">Start Build</button>
+           <button class="btn">Cancel</button>
+	 </div>
+       </form>
+     </div>
+     <div class="span5">
+       <ul class="other-params" id="other_params">
+       </ul>
+       <div class="alert alert-info">
+	 <strong>Need something extra?</strong> 
+	 Click on a button above to add it to the list of build parameters.
+       </div>
+     </div>
+   </div>
+   <div class="row">
+     <div class="span12">
+     </div>
+   </div>
+   <script>
+{% autoescape false %}
+  var params = {{params|json}};
+{% endautoescape %}
+{% raw %}
+  for (idx in params) {
+     var param = params[idx];
+     if (param['required']) {
+       $("#parameter").tmpl(param).appendTo("#req_params");
+       param["active"] = true;
+       $("#required-field").tmpl(param).appendTo("#other_params");
+     } else {
+       $("#inactive-field").tmpl(param).appendTo("#other_params");
+       param["active"] = false;
+     }
+  }
+
+function make_active(name) {
+  for (idx in params) {
+     var param = params[idx];
+     if (param['name'] == name) {
+       if (!param["active"]) {
+         var fld = $("#active-field").tmpl(param);
+         $("#fld_" + name).replaceWith(fld);
+         $("#parameter").tmpl(param).appendTo("#req_params");
+         param["active"] = true;
+       } else {
+         var fld = $("#inactive-field").tmpl(param);
+         $("#fld_" + name).replaceWith(fld);
+         $("#param_" + name).remove();
+         param["active"] = false;
+       }
+     }
+  }
+}
+{% endraw %}
+</script>
+{% endblock %}

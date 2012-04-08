@@ -183,3 +183,22 @@ border-color: #51A351 #51A351 #387038;
 border-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.25);
 filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
 }
+
+.other-params {
+    list-style-type: none;
+}
+
+.other-params .add {
+    float: left;
+    width: 21px;
+    height: 21px;
+    margin-right: 2px;
+}
+
+.other-params .name {
+    display: inline-block;
+}
+
+.other-params .fieldrow {
+    margin-bottom: 3px;
+}
