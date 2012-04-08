@@ -195,6 +195,10 @@ class ExecutionThread(threading.Thread):
             if return_code != 0:
                 # We never do that. It must have crashed - clear the session
                 print("Job CRASHED")
+                print("Session ID: %s" % session_id)
+                print("Session Path: %s" % session.path)
+                print("Session Logfile: %s" % session.logfile)
+                print("Run-info: %s" % item)
                 session.return_code = return_code
                 session.state = "finished"
                 session.save()
