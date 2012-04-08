@@ -10,7 +10,7 @@ from jobserver.job import get_job
 from jobserver.build import new_build, get_build_info, set_session_running
 from jobserver.build import set_session_done, get_session
 from jobserver.build import KEY_JOB_BUILDS, set_session_queued
-from jobserver.queue import queue, StartBuildQ
+from jobserver.queue import queue, DispatchSession
 
 urls = (
     '/create/(.+).json',     'CreateBuild',
@@ -54,7 +54,7 @@ class StartBuild:
         build_id, build = new_build(db, job, job_ref,
                                                 input.get('parameters', {}))
         set_session_queued(db, build['session_id'])
-        queue(db, StartBuildQ(build_id, build['session_id']))
+        queue(db, DispatchSession(build['session_id']))
         return jsonify(id = build_id, **build)
 
 
