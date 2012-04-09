@@ -49,7 +49,8 @@ def new_build(db, job, job_ref, parameters = {}):
                  created = now,
                  session_id = '%s-1' % build_id,
                  max_session = 0,  # will be incremented to 1 below
-                 parameters = json.dumps(parameters))
+                 parameters = json.dumps(parameters),
+                 artifacts = json.dumps([]))
     db.hmset(KEY_BUILD % build_id, build)
 
     # Create the main session
@@ -60,12 +61,18 @@ def new_build(db, job, job_ref, parameters = {}):
     return build_id, build
 
 
+def set_build_artifacts(db, build_id, files):
+    db.hset(KEY_BUILD % build_id, 'artifacts', json.dumps(files))
+
+
 def get_build_info(db, build_id):
     build = db.hgetall(KEY_BUILD % build_id)
     if not build:
         return None
     build['number'] = int(build['number'])
     build['parameters'] = json.loads(build['parameters'])
+    print(build_id)
+    build['artifacts'] = json.loads(build['artifacts'])
     return build
 
 

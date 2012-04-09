@@ -100,3 +100,11 @@ class AsyncJoined(LogItem):
     def __init__(self, session_no, time):
         self.params = dict(session_no = int(session_no),
                            time = int(time))
+
+
+class ArtifactAdded(LogItem):
+    type = 'artifact-added'
+
+    def __init__(self, filename, url):
+        self.params = dict(filename = filename,
+                           url = url)

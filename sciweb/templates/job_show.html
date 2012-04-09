@@ -12,6 +12,10 @@
     <div class="row">
       <div class="span12">
 	<h2>#{{build.number}} - {{build.description}}</h2>
+      </div>
+    </div>
+    <div class="row">
+      <div class="span7">
 	<p>Started {{build.created|pretty_date}} from job <a href="{{build.job_url}},settings">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
 {% if build.result == 'success' %}
 	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
@@ -37,6 +41,14 @@
 {{ macros.log_entry(entry, log) }}
 {% endfor %}
        </ul>
+       </div>
+       <div class="span5">
+	 <h3>Build Artifacts</h3>
+	 <ul>
+{% for entry in build.artifacts %}
+           <li><a href="{{entry.url}}">{{entry.filename}}</a></li>
+{% endfor %}
+	 </ul>
       </div>
     </div>
 {% endif %}

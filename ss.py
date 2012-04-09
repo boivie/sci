@@ -8,6 +8,7 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
+import socket
 from optparse import OptionParser
 import web, json, os
 
@@ -39,6 +40,11 @@ def get_fpath(sid, filename):
     return fpath
 
 
+def get_url(sid, filename):
+    return "http://%s:%d/f/B%s/%s" % (web.config._hostname, web.config._port,
+                                     sid, filename)
+
+
 def rglob(directory):
     matches = []
     for root, dirnames, filenames in os.walk(directory):
@@ -52,7 +58,10 @@ def rglob(directory):
 class ListSession:
     def GET(self, sid):
         spath = get_spath(sid)
-        matches = rglob(spath)
+        matches = []
+        for fname in rglob(spath):
+            matches.append({'filename': fname,
+                            'url': get_url(sid, fname)})
         return jsonify(files = matches)
 
 
@@ -84,7 +93,9 @@ class Transfer:
 
         if ".." in filename:
             abort(403, "Not Allowed")
-        return jsonify(status = "ok")
+
+        return jsonify(status = "ok",
+                       url = get_url(sid, filename))
 
     def GET(self, sid, filename):
         try:
@@ -104,8 +115,16 @@ if __name__ == "__main__":
                       help = "port to use")
     parser.add_option("--path", dest = "path", default = ".",
                       help = "path to use")
+    parser.add_option("-u", "--host", dest = "hostname",
+                      help = "override host name")
 
     (opts, args) = parser.parse_args()
+    if opts.hostname:
+        web.config._hostname = opts.hostname
+    else:
+        web.config._hostname = socket.gethostname()
+    web.config._port = opts.port
     web.config._path = os.path.realpath(opts.path)
+    print("Using url: http://%s:%d" % (web.config._hostname, web.config._port))
 
     web.httpserver.runsimple(app.wsgifunc(), ("0.0.0.0", int(opts.port)))

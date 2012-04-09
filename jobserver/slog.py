@@ -2,9 +2,10 @@ import json
 import time
 import types
 
-from sci.slog import JobDone, SetDescription
+from sci.slog import JobDone, SetDescription, ArtifactAdded
 from jobserver.build import KEY_BUILD
 from jobserver.job import KEY_JOB
+from jobserver.queue import queue, UpdateArtifacts
 
 KEY_SLOG = 'slog:%s'
 
@@ -22,8 +23,14 @@ def DoSetDescription(db, build_id, session_no, li):
     db.hset(KEY_BUILD % build_id, 'description', li['params']['description'])
 
 
+def DoArtifactAdded(db, build_id, session_no, li):
+    # Let the backend update the list of artifacts
+    queue(db, UpdateArtifacts(build_id))
+
+
 SLOG_HANDLERS = {JobDone.type: DoJobDone,
-                 SetDescription.type: DoSetDescription}
+                 SetDescription.type: DoSetDescription,
+                 ArtifactAdded.type: DoArtifactAdded}
 
 
 def add_slog(db, session_id, item):

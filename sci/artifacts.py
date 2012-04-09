@@ -12,6 +12,7 @@
     :license: Apache License 2.0
 """
 import os, shutil, zipfile, glob
+from sci.slog import ArtifactAdded
 from .http_client import HttpClient, HttpRequest
 
 
@@ -41,7 +42,8 @@ class ArtifactsBase(object):
         if not remote_filename:
             remote_filename = os.path.relpath(local_filename,
                                               self.job.session.workspace)
-        self._add(local_filename, remote_filename, **kwargs)
+        url = self._add(local_filename, remote_filename, **kwargs)
+        self.job.slog(ArtifactAdded(remote_filename, url))
         return Artifact(remote_filename)
 
     def get(self, remote_filename, local_filename = None, **kwargs):
@@ -92,6 +94,7 @@ class Artifacts(ArtifactsBase):
         if result["status"] != "ok":
             raise ArtifactException("Failed to store %s to server: %s" % \
                                         (local_filename, result["status"]))
+        return result['url']
 
     def _get(self, remote_filename, local_filename, **kwargs):
         path = "/f/%s/%s" % (self.job.build_id, remote_filename)

@@ -3,14 +3,16 @@ import json, logging, sys, time
 
 import redis
 
-from jobserver.queue import DispatchSession, AgentAvailable
+from jobserver.queue import DispatchSession, AgentAvailable, UpdateArtifacts
 from sci.http_client import HttpClient
 from sci.utils import random_sha1
 from jobserver.build import get_session, get_session_labels
+from jobserver.build import set_build_artifacts
 from jobserver.build import set_session_to_agent, set_session_queued
 import jobserver.db as jdb
 
 JOBSERVER_URL = "http://localhost:6697"
+STORAGESERVER_URL = "http://localhost:6698"
 
 
 def dispatch_later(pipe, session_id):
@@ -118,6 +120,13 @@ def handle_agent_available(agent_id):
         db.sadd(jdb.KEY_AVAILABLE, agent_id)
 
 
+def handle_update_artifacts(build_id):
+    db = jdb.conn()
+    client = HttpClient(STORAGESERVER_URL)
+    files = client.call('/list/%s.json' % build_id)['files']
+    set_build_artifacts(db, build_id, files)
+
+
 def worker(msg):
     item = json.loads(msg)
     logging.debug("Got msg '%s'" % item['type'])
@@ -127,6 +136,9 @@ def worker(msg):
 
     elif item['type'] == AgentAvailable.type:
         handle_agent_available(item['params']['agent_id'])
+
+    elif item['type'] == UpdateArtifacts.type:
+        handle_update_artifacts(item['params']['build_id'])
 
 
 if __name__ == '__main__':

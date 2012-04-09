@@ -28,6 +28,7 @@
 {% elif entry.type == 'async-joined' %}
 {% elif entry.type == 'set-description' %}
 {% elif entry.type == 'session-done' %}
+{% elif entry.type == 'artifact-added' %}
 {% else %}
 {% call fl(entry) %}{{ entry }}{% endcall %}
 {% endif %}

@@ -27,6 +27,13 @@ class AgentAvailable(QueueItem):
         self.params = dict(agent_id = agent_id)
 
 
+class UpdateArtifacts(QueueItem):
+    type = 'update-artifacts'
+
+    def __init__(self, build_id):
+        self.params = dict(build_id = build_id)
+
+
 def queue(db, item, front = False):
     if front:
         db.lpush(KEY_QUEUE, item.serialize())
