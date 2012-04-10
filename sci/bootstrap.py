@@ -42,16 +42,16 @@ class Bootstrap(object):
                 shutil.copyfileobj(src, dest)
 
     @classmethod
-    def handle_parameters(cls, env, parameters, metadata):
+    def handle_parameters(cls, env, parameters, param_def):
         for param in parameters:
-            if not param in metadata['Parameters']:
+            if not param in param_def:
                 print("Invalid parameter: %s" % param)
                 sys.exit(2)
             env[param] = parameters[param]
 
         # Verify that all 'required' parameters are set
-        for name in metadata['Parameters']:
-            param = metadata['Parameters'][name]
+        for name in param_def:
+            param = param_def[name]
             if param.get('required', False):
                 if not name in env:
                     print("Required parameter %s not set!" % name)
@@ -60,17 +60,17 @@ class Bootstrap(object):
         # Set default parameters that have a static value
         # (parameters that have a function as default value will have them
         #  called just before starting the job)
-        for name in metadata['Parameters']:
-            param = metadata['Parameters'][name]
+        for name in param_def:
+            param = param_def[name]
             if 'default' in param and not name in env:
                 env[name] = param['default']
 
     @classmethod
-    def create_env(cls, metadata, parameters, build_id, build_name):
+    def create_env(cls, param_def, parameters, build_id, build_name):
         env = Environment()
 
         # Set provided parameters
-        Bootstrap.handle_parameters(env, parameters, metadata)
+        Bootstrap.handle_parameters(env, parameters, param_def)
 
         env.define("SCI_BUILD_ID", "The unique build identifier",
                    read_only = True, source = "initial environment",
@@ -96,13 +96,18 @@ class Bootstrap(object):
     def run(cls, session, build_id, jobserver, entrypoint_name = "",
             args = [], kwargs = {}, env = None):
         # Fetch build information
-        build_info = HttpClient(jobserver).call('/build/%s.json' % build_id)
+        js = HttpClient(jobserver)
+        build_info = js.call('/build/%s.json' % build_id)
         build_info = build_info['build']
 
-        # Fetch the recipe and metadata
+        # Fetch the job
+        job = js.call('/job/%s@%s' % (build_info['job_name'],
+                                      build_info['job_ref']))
+
+        # Fetch the recipe
         recipe_ref = build_info['recipe_ref']
         recipe_fname = os.path.join(session.path, 'build.py')
-        recipe = HttpClient(jobserver).call('/recipe/%s.json' % recipe_ref)
+        recipe = js.call('/recipe/%s.json' % recipe_ref)
         with open(recipe_fname, 'w') as f:
             f.write(recipe['contents'])
 
@@ -111,7 +116,7 @@ class Bootstrap(object):
         else:
             build_name = "%s-%d" % (build_info['job_name'],
                                     build_info['number'])
-            env = Bootstrap.create_env(recipe['metadata'],
+            env = Bootstrap.create_env(job['parameters'],
                                        build_info['parameters'],
                                        build_id, build_name)
 

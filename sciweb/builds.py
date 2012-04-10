@@ -30,18 +30,14 @@ def start(id):
 
 
 def show_start(info, id):
-    rref = info['settings']['recipe_name']
-    if info['settings']['recipe_ref']:
-        rref = info['settings']['recipe_ref']
-    recipe = js().call('/recipe/%s.json' % rref)
-    params = []
-    for k, v in recipe['metadata']['Parameters'].iteritems():
-        v['name'] = k
-        v['required'] = v.get('required', False)
-        v['read-only'] = v.get('read-only', False)
-        v['def'] = v.get('default', '')
-        params.append(v)
+    params = info['parameters']
+    for k, v in params.iteritems():
+        # 'default' doesn't play well in jquery.tmpl - why?
+        if 'default' in v:
+            v['def'] = v['default']
+            del v['default']
 
+    params = params.values()
     params.sort(lambda a, b: cmp(a['name'], b['name']))
 
     return render_template('job_start.html',

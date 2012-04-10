@@ -9,6 +9,8 @@ from jobserver.gitdb import NoChangesException, CommitException
 from jobserver.webutils import abort, jsonify
 from jobserver.job import get_job, KEY_JOB
 from jobserver.build import KEY_BUILD, KEY_JOB_BUILDS, KEY_SESSION
+from jobserver.recipe import get_recipe_metadata
+
 
 urls = (
     '',                        'ListJobs',
@@ -52,13 +54,16 @@ class GetPutJob:
         results = {}
         parts = query.split(',')
         name = parts[0]
+        ref = None
+        if '@' in name:
+            name, ref = name.split('@')
         repo = config()
-        results['settings'], results['ref'] = get_job(repo, name)
+        results['settings'], results['ref'] = get_job(repo, name, ref)
         success_bid = db.hget(KEY_JOB % name, 'success')
         if success_bid:
             success_no = db.hget(KEY_BUILD % success_bid, 'number')
             results['success_no'] = int(success_no)
-        results['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
+            results['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
         # Fetch information about the latest 10 builds
         history = []
         build_keys = ('number', 'created', 'description')
@@ -73,7 +78,23 @@ class GetPutJob:
                                 description = description,
                                 state = state, result = result))
         history.reverse()
-        return jsonify(history = history, **results)
+
+        # Add recipe metadata to build a parameter list
+        recipe_ref = results['settings'].get('recipe_ref')
+        if not recipe_ref:
+            recipe_ref = results['settings']['recipe_name']
+        recipe = get_recipe_metadata(repo, recipe_ref)
+        params = {}
+        for k, v in recipe['Parameters'].iteritems():
+            v['name'] = k
+            params[k] = v
+
+        # and override by the job's
+        for k, v in results['settings'].get('parameters', {}).iteritems():
+            for k2, v2 in v.iteritems():
+                params[k][k2] = v2
+
+        return jsonify(history = history, parameters = params, **results)
 
 
 class ListJobs:
