@@ -202,3 +202,7 @@ filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
 .other-params .fieldrow {
     margin-bottom: 3px;
 }
+
+.link-black {
+    color: #000000;
+}

@@ -3,25 +3,24 @@
 {% set active_page = "builds" %}
 
 {% set tab_bar = [
-    (',start', 'start', 'icon-play', 'Start New Build'),
-    (',settings', 'settings', 'icon-cog', 'Info'),
-    ('', 'latest', 'icon-repeat', 'Latest Build'),
-    (',success', 'success', 'icon-ok', 'Last Success'),
-    (',history', 'history', 'icon-time', 'Build History'),
+    (url_for('.show_home', id=id), 'home', 'icon-home', 'Overview'),
+    (url_for('.show_latest', id=id), 'latest', 'icon-repeat', 'Latest Build'),
+    (url_for('.show_success', id=id), 'success', 'icon-ok', 'Last Success'),
+    (url_for('.show_history', id=id), 'history', 'icon-time', 'Build History'),
 ] -%}
 
 {% block content %}
     <div class="row">
       <div class="span12">
 	<a style="float: right" class="btn" href="{{edit_url}}"><i class="icon-edit"></i> Edit</a>
-	<h1>{{name}}</h1>
+	<h1><a class="link-black" href="{{url_for('.show_home', id=id)}}">{{name}}</a></h1>
       </div>
     </div>
     <div style="margin-top: 20px" class="row">
       <div class="span12">
 	<ul class="nav nav-tabs">
 {%- for href, id, icon, caption in tab_bar %}
-	  <li{% if id == active_tab %} class="active"{% endif %}><a href="{{job_url}}{{href}}"><i class="{{icon}}"></i> {{caption}}</a></li>
+	  <li{% if id == active_tab %} class="active"{% endif %}><a href="{{href}}"><i class="{{icon}}"></i> {{caption}}</a></li>
 {%- endfor %}
 	</ul>
       </div>

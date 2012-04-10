@@ -16,23 +16,23 @@
 	      <td>
 {% if item.state == 'done' %}
 {% if item.result == 'success' %}
-<a class="btn btn-small btn-success" href="{{job_url}},{{item.number}}">
+<a class="btn btn-small btn-success" href="{{url_for('.show_build', id=id, build_no=item.number)}}">
 <i class="icon-ok icon-white"></i>
 {% elif item.result == 'failed' %}
-<a class="btn btn-small btn-danger" href="{{job_url}},{{item.number}}">
+<a class="btn btn-small btn-danger" href="{{url_for('.show_build', id=id, build_no=item.number)}}">
 <i class="icon-remove icon-white"></i>
 {% elif item.result == 'error' %}
-<a class="btn btn-small btn-danger" href="{{job_url}},{{item.number}}">
+<a class="btn btn-small btn-danger" href="{{url_for('.show_build', id=id, build_no=item.number)}}">
 <i class="icon-remove icon-white"></i>
 {% elif item.result == 'aborted' %}
-<a class="btn btn-small btn-danger" href="{{job_url}},{{item.number}}">
+<a class="btn btn-small btn-danger" href="{{url_for('.show_build', id=id, build_no=item.number)}}">
 <i class="icon-remove icon-white"></i>
 {% endif %}
 {% elif item.state == 'running' %}
-<a class="btn btn-small btn-warning" href="{{job_url}},{{item.number}}">
+<a class="btn btn-small btn-warning" href="{{url_for('.show_build', id=id, build_no=item.number)}}">
 <i class="icon-play icon-white"></i>
 {% else %}
-<a class="btn btn-small" href="{{job_url}},{{item.number}}">
+<a class="btn btn-small" href="{{url_for('.show_build', id=id, build_no=item.number)}}">
 <i class="icon-off"></i>
 {% endif %}
 		  {{item.number}}</a></td>

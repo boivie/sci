@@ -2,8 +2,10 @@
 {% block subcontents %}
     <div class="row">
       <div class="span12">
-	Using recipe <a href="{{job.settings.recipe_url}}">{{job.settings.recipe_name}}</a>{% if job.settings.recipe_ref %},
-	locked on revision {{job.settings.recipe_ref|short_id}}{% endif %}
+	<p class="lead">{{job.settings.description}}</p>
+	<center>
+	  <a href="{{url_for('.show_start', id = id)}}" class="btn btn-large btn-primary">Start New Build!</a>
+	</center>
       </div>
     </div>
 {% endblock %}

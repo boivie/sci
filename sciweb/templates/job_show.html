@@ -16,7 +16,7 @@
     </div>
     <div class="row">
       <div class="span7">
-	<p>Started {{build.created|pretty_date}} from job <a href="{{build.job_url}},settings">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
+	<p>Started {{build.created|pretty_date}} from job <a href="{{build.job_url}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
 {% if build.result == 'success' %}
 	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
 {% elif build.result == 'failed' %}
