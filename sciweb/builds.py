@@ -23,7 +23,8 @@ def start(id):
     for name in request.form:
         if name.startswith("param_"):
             parameters[name[6:]] = request.form[name]
-    data = {'parameters': parameters}
+    data = {'parameters': parameters,
+            'description': request.form.get('description', '')}
     info = js().call('/build/start/%s' % id, input = data)
     print(info)
     return "Build ID %s" % info['id']

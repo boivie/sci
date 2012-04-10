@@ -38,7 +38,8 @@ class CreateBuild:
 
         job, job_ref = get_job(repo, job_name, input.get('job_ref'))
         build_id, build = new_build(db, job, job_ref,
-                                    input.get('parameters', {}))
+                                    parameters = input.get('parameters', {}),
+                                    description = input.get('description', ''))
 
         return jsonify(id = build_id, **build)
 
@@ -52,7 +53,8 @@ class StartBuild:
 
         job, job_ref = get_job(repo, job_name, input.get('job_ref'))
         build_id, build = new_build(db, job, job_ref,
-                                                input.get('parameters', {}))
+                                    parameters = input.get('parameters', {}),
+                                    description = input.get('description', ''))
         set_session_queued(db, build['session_id'])
         queue(db, DispatchSession(build['session_id']))
         return jsonify(id = build_id, **build)

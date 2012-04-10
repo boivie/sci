@@ -73,6 +73,13 @@ class SetDescription(LogItem):
         self.params = dict(description = description)
 
 
+class SetBuildId(LogItem):
+    type = 'set-build-id'
+
+    def __init__(self, build_id):
+        self.params = dict(build_id = build_id)
+
+
 class SessionStarted(LogItem):
     type = 'session-start'
 

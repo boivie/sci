@@ -36,15 +36,23 @@
 {% endraw %}
    <div class="row">
      <div class="span7">
+       <p class="lead">Enter an optional description and hit "Start Build". If you want to make your build more customized, override some build parameters to the left.</p>
        <form class="form-horizontal" method="POST" action="{{post_url}}">
          <fieldset>
-           <legend>Build Parameters</legend>
+	   <div class="control-group">
+             <label class="control-label" for="description">Description</label>
+             <div class="controls">
+	       <input type="text" class="input-xlarge" name="description" placeholder="An optional description here">
+             </div>
+	   </div>
+         </fieldset>
+         <fieldset>
 	   <div class="control-group" id="req_params">
 	   </div>
          </fieldset>
 	 <div class="form-actions">
-           <button type="submit" class="btn btn-primary">Start Build</button>
-           <button class="btn">Cancel</button>
+           <button type="submit" class="btn btn-primary btn-large">Start Build</button>
+           <a href="{{url_for('.show_home', id=id)}}" class="btn btn-large">Cancel</a>
 	 </div>
        </form>
      </div>

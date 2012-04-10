@@ -66,16 +66,17 @@ class GetPutJob:
             results['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
         # Fetch information about the latest 10 builds
         history = []
-        build_keys = ('number', 'created', 'description')
+        build_keys = ('number', 'created', 'description', 'build_id')
         session_keys = ('state', 'result')
         for build_id in db.lrange(KEY_JOB_BUILDS % name, -10, -1):
-            number, created, description = \
+            number, created, description, bid = \
                 db.hmget(KEY_BUILD % build_id, build_keys)
             session_id = build_id + '-1'
             state, result = db.hmget(KEY_SESSION % session_id, session_keys)
 
             history.append(dict(number = number, created = created,
                                 description = description,
+                                build_id = bid or None,
                                 state = state, result = result))
         history.reverse()
 

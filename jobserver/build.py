@@ -30,7 +30,7 @@ RESULT_FAILED = 'failed'
 RESULT_ABORTED = 'aborted'
 
 
-def new_build(db, job, job_ref, parameters = {}):
+def new_build(db, job, job_ref, parameters = {}, description = ''):
     repo = config()
     recipe_ref = job.get('recipe_ref')
     if not recipe_ref:
@@ -45,7 +45,8 @@ def new_build(db, job, job_ref, parameters = {}):
                  recipe_name = job['recipe_name'],
                  recipe_ref = recipe_ref,
                  number = 0,
-                 description = '',
+                 build_id = '',  # this is the external id
+                 description = description,
                  created = now,
                  session_id = '%s-1' % build_id,
                  max_session = 0,  # will be incremented to 1 below
@@ -57,7 +58,9 @@ def new_build(db, job, job_ref, parameters = {}):
     create_session(db, build_id)
 
     number = db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
-    db.hset(KEY_BUILD % build_id, 'number', number)
+    values = {'number': number,
+              'build_id': '%s-%d' % (job['name'], number)}
+    db.hmset(KEY_BUILD % build_id, values)
     return build_id, build
 
 

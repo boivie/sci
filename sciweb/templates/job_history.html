@@ -5,7 +5,8 @@
 	<table class="table table-striped">
 	  <thead>
 	    <tr>
-	      <th>Build</th>
+	      <th>Number</th>
+	      <th>Build ID</th>
 	      <th>Description</th>
 	      <th>When</th>
 	    </tr>
@@ -36,6 +37,7 @@
 <i class="icon-off"></i>
 {% endif %}
 		  {{item.number}}</a></td>
+	      <td>{{item.build_id}}</td>
               <td>{{item.description|default("none given")}}</td>
 	      <td>{{item.created|pretty_date}}</td>
 	    </tr>

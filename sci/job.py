@@ -16,7 +16,8 @@ from .session import Session
 from .bootstrap import Bootstrap
 from .http_client import HttpClient
 from .slog import (StepBegun, StepDone, StepJoinBegun, StepJoinDone,
-                   JobBegun, JobDone, JobErrorThrown, SetDescription)
+                   JobBegun, JobDone, JobErrorThrown, SetDescription,
+                   SetBuildId)
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -75,6 +76,7 @@ class Job(object):
         self.steps = []
         self._mainfn = None
         self._description = ""
+        self._external_id = ""
         self.build_id = None
         self.debug = debug
         self._job_key = os.environ.get("SCI_JOB_KEY")
@@ -94,6 +96,15 @@ class Job(object):
         return self._description
 
     description = property(get_description, set_description)
+
+    def set_external_id(self, external_id):
+        self._external_id = self.format(external_id)
+        self.slog(SetBuildId(self._external_id))
+
+    def get_external_id(self):
+        return self._external_id
+
+    external_id = property(get_external_id, set_external_id)
 
     def set_session(self, session):
         if self._session:
