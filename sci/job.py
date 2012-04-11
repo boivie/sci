@@ -11,13 +11,12 @@ from optparse import OptionParser
 import re, os, time, sys, types, subprocess, logging, json
 from .environment import Environment
 from .artifacts import Artifacts
-from .agents import Agents
 from .session import Session
 from .bootstrap import Bootstrap
 from .http_client import HttpClient
 from .slog import (StepBegun, StepDone, StepJoinBegun, StepJoinDone,
                    JobBegun, JobDone, JobErrorThrown, SetDescription,
-                   SetBuildId)
+                   SetBuildId, AsyncJoined)
 
 
 re_var = re.compile("{{(.*?)}}")
@@ -50,10 +49,10 @@ class Step(JobFunction):
         ret = self.fun(*args, **kwargs)
 
         # Wait for any unfinished detached jobs
-        if self.job.agents.should_run():
+        if self.job.should_run_async():
             diff = (time.time() - time_start) * 1000
             self.job.slog(StepJoinBegun(self.name, diff))
-            self.job.agents.run()
+            self.job.wait_async()
             diff = (time.time() - time_start) * 1000
             self.job.slog(StepJoinDone(self.name, diff))
 
@@ -66,6 +65,45 @@ class MainFn(JobFunction):
     def __init__(self, name, fun, **kwargs):
         JobFunction.__init__(self, name, fun, **kwargs)
         self.is_main = True
+
+STATE_NONE, STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(4)
+
+
+class AsyncJob(object):
+    def __init__(self, job, step, args, kwargs):
+        self.job = job
+        self.step = step
+        self.args = args
+        self.kwargs = kwargs
+        self.state = STATE_NONE
+        self.session_id = None
+
+    def run(self):
+        data = {'build_id': self.job.build_uuid,
+                'job_server': self.job.jobserver,
+                'labels': [],
+                'parent': self.job.session.id,
+                'run_info': {'step_fun': self.step.fun.__name__,
+                             'step_name': self.step.name,
+                             'args': self.args,
+                             'kwargs': self.kwargs,
+                             'env': self.job.env.serialize()}}
+        self.ts_start = time.time()
+        js = HttpClient(self.job.jobserver)
+        res = js.call('/agent/dispatch', input = json.dumps(data))
+        self.session_id = res['session_id']
+        self.state = STATE_RUNNING
+
+    def join(self):
+        assert(self.state == STATE_RUNNING)
+        js = HttpClient(self.job.jobserver)
+        res = js.call('/agent/result/%s' % self.session_id)
+        self.output = res['output']
+        self.result = res['result']
+        self.state = STATE_DONE
+        session_no = self.session_id.split('-')[-1]
+        diff = (time.time() - self.ts_start) * 1000
+        self.job.slog(AsyncJoined(session_no, diff))
 
 
 class Job(object):
@@ -85,8 +123,33 @@ class Job(object):
         self.env = Environment()
         self._default_fns = {}
         self.artifacts = Artifacts(self, "http://localhost:6698")
-        self.agents = Agents(self, "http://localhost:6697")
         self.jobserver = "http://localhost:6697"
+        self._async_jobs = []
+
+    def async(self, step, args = [], kwargs = {}):
+        ajob = AsyncJob(self, step, args, kwargs)
+        ajob.state = STATE_PREPARED
+        self._async_jobs.append(ajob)
+        return ajob
+
+    def wait_async(self):
+        for ajob in self._async_jobs:
+            ajob.run()
+
+        for ajob in self._async_jobs:
+            ajob.join()
+
+        # Return all the return values
+        res = [a.output for a in self._async_jobs]
+
+        self._async_jobs = []
+        return res
+
+    def should_run_async(self):
+        for ajob in self._async_jobs:
+            if ajob.state != STATE_DONE:
+                return True
+        return False
 
     def set_description(self, description):
         self._description = self.format(description)

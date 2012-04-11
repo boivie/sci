@@ -127,9 +127,9 @@ def run_matrix_jobs():
     """Running jobs asynchronously"""
     for product in build.env["PRODUCTS"]:
         for variant in build.env["VARIANTS"]:
-            build.agents.async(run_single_matrix_job, args = [product, variant])
+            build.async(run_single_matrix_job, args = [product, variant])
 
-    for result in build.agents.run():
+    for result in build.wait_async():
         print("Result: " + result)
 
 
