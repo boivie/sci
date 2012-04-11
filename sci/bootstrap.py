@@ -66,15 +66,15 @@ class Bootstrap(object):
                 env[name] = param['default']
 
     @classmethod
-    def create_env(cls, param_def, parameters, build_id, build_name):
+    def create_env(cls, param_def, parameters, build_uuid, build_name):
         env = Environment()
 
         # Set provided parameters
         Bootstrap.handle_parameters(env, parameters, param_def)
 
-        env.define("SCI_BUILD_ID", "The unique build identifier",
+        env.define("SCI_BUILD_UUID", "The unique build identifier",
                    read_only = True, source = "initial environment",
-                   value = build_id)
+                   value = build_uuid)
         env.define("SCI_BUILD_NAME", "The unique build name",
                    read_only = True, source = "initial environment",
                    value = build_name)
@@ -93,11 +93,11 @@ class Bootstrap(object):
         return env
 
     @classmethod
-    def run(cls, session, build_id, jobserver, entrypoint_name = "",
+    def run(cls, session, build_uuid, jobserver, entrypoint_name = "",
             args = [], kwargs = {}, env = None):
         # Fetch build information
         js = HttpClient(jobserver)
-        build_info = js.call('/build/%s.json' % build_id)
+        build_info = js.call('/build/%s.json' % build_uuid)
         build_info = build_info['build']
 
         # Fetch the job
@@ -118,7 +118,7 @@ class Bootstrap(object):
                                     build_info['number'])
             env = Bootstrap.create_env(job['parameters'],
                                        build_info['parameters'],
-                                       build_id, build_name)
+                                       build_uuid, build_name)
 
         mod = imp.new_module('recipe')
         mod.__file__ = recipe_fname

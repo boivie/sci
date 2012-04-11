@@ -76,8 +76,8 @@ class Job(object):
         self.steps = []
         self._mainfn = None
         self._description = ""
-        self._external_id = ""
-        self.build_id = None
+        self._build_id = ""
+        self.build_uuid = None
         self.debug = debug
         self._job_key = os.environ.get("SCI_JOB_KEY")
         self._current_step = None
@@ -97,14 +97,14 @@ class Job(object):
 
     description = property(get_description, set_description)
 
-    def set_external_id(self, external_id):
-        self._external_id = self.format(external_id)
-        self.slog(SetBuildId(self._external_id))
+    def set_build_id(self, build_id):
+        self._build_id = self.format(build_id)
+        self.slog(SetBuildId(self._build_id))
 
-    def get_external_id(self):
-        return self._external_id
+    def get_build_id(self):
+        return self._build_id
 
-    external_id = property(get_external_id, set_external_id)
+    build_id = property(get_build_id, set_build_id)
 
     def set_session(self, session):
         if self._session:
@@ -166,7 +166,7 @@ class Job(object):
         # Must set time first. It's used when printing
         self.start_time = time.time()
         self.session = session
-        self.build_id = env['SCI_BUILD_ID']
+        self.build_uuid = env['SCI_BUILD_UUID']
         self.env = env
 
         if entrypoint.is_main:
@@ -176,7 +176,6 @@ class Job(object):
             self.slog(JobBegun())
         self._print_banner("Preparing Job", dash = "=")
 
-        print("Build-Id: %s" % self.build_id)
         self.env.print_values()
 
         self._print_banner("Starting Job", dash = "=")
@@ -227,7 +226,7 @@ class Job(object):
         client.call('/build/started/%s' % build_info['id'],
                     method = 'POST')
         try:
-            res = Bootstrap.run(session, build_id = build_info['id'],
+            res = Bootstrap.run(session, build_uuid = build_info['id'],
                                 jobserver = self.jobserver)
         except Exception as e:
 #            client.call('/build/done/%s' % session.id,

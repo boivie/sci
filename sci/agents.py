@@ -22,7 +22,7 @@ class Agent(object):
         self.state = STATE_NONE
 
     def run(self, url, job):
-        data = {'build_id': job.build_id,
+        data = {'build_id': job.build_uuid,
                 'job_server': job.jobserver,
                 'labels': [],
                 'parent': job.session.id,
