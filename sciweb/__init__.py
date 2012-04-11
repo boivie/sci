@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, redirect, url_for
 import json, logging, types
 from recipes import app as recipes_app
 from agents import app as agents_app
@@ -113,4 +113,4 @@ def after_request(resp):
 
 @app.route("/", methods = ["GET"])
 def index():
-    return "Hello World"
+    return redirect(url_for('builds.index'))
