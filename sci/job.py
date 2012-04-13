@@ -31,6 +31,7 @@ class JobFunction(object):
         self.name = name
         self.fun = fun
         self.is_main = False
+        self._is_entrypoint = False
 
     def __call__(self, *args, **kwargs):
         return self.fun(*args, **kwargs)
@@ -40,8 +41,14 @@ class Step(JobFunction):
     def __init__(self, job, name, fun, **kwargs):
         JobFunction.__init__(self, name, fun, **kwargs)
         self.job = job
+        self._is_async = False
 
     def __call__(self, *args, **kwargs):
+        if self._is_async and not self._is_entrypoint:
+            ajob = AsyncJob(self.job, self, args, kwargs)
+            ajob.run()
+            self.job._async_jobs.append(ajob)
+            return ajob
         self.job.slog(StepBegun(self.name, args, kwargs))
         time_start = time.time()
         self.job._current_step = self
@@ -49,10 +56,10 @@ class Step(JobFunction):
         ret = self.fun(*args, **kwargs)
 
         # Wait for any unfinished detached jobs
-        if self.job.should_run_async():
+        if self.job.has_running_asyncs():
             diff = (time.time() - time_start) * 1000
             self.job.slog(StepJoinBegun(self.name, diff))
-            self.job.wait_async()
+            self.job.join_asyncs()
             diff = (time.time() - time_start) * 1000
             self.job.slog(StepJoinDone(self.name, diff))
 
@@ -66,7 +73,7 @@ class MainFn(JobFunction):
         JobFunction.__init__(self, name, fun, **kwargs)
         self.is_main = True
 
-STATE_NONE, STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(4)
+STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(3)
 
 
 class AsyncJob(object):
@@ -75,8 +82,9 @@ class AsyncJob(object):
         self.step = step
         self.args = args
         self.kwargs = kwargs
-        self.state = STATE_NONE
+        self.state = STATE_PREPARED
         self.session_id = None
+        self.result = None
 
     def run(self):
         data = {'build_id': self.job.build_uuid,
@@ -94,7 +102,9 @@ class AsyncJob(object):
         self.session_id = res['session_id']
         self.state = STATE_RUNNING
 
-    def join(self):
+    def get(self):
+        if self.state == STATE_DONE:
+            return self.output
         assert(self.state == STATE_RUNNING)
         js = HttpClient(self.job.jobserver)
         res = js.call('/agent/result/%s' % self.session_id)
@@ -104,6 +114,7 @@ class AsyncJob(object):
         session_no = self.session_id.split('-')[-1]
         diff = (time.time() - self.ts_start) * 1000
         self.job.slog(AsyncJoined(session_no, diff))
+        return self.output
 
 
 class Job(object):
@@ -126,30 +137,19 @@ class Job(object):
         self.jobserver = "http://localhost:6697"
         self._async_jobs = []
 
-    def async(self, step, args = [], kwargs = {}):
-        ajob = AsyncJob(self, step, args, kwargs)
-        ajob.state = STATE_PREPARED
-        self._async_jobs.append(ajob)
-        return ajob
+    def has_running_asyncs(self):
+        njobs = len([a for a in self._async_jobs if a.state == STATE_RUNNING])
+        return njobs > 0
 
-    def wait_async(self):
+    def join_asyncs(self):
         for ajob in self._async_jobs:
-            ajob.run()
-
-        for ajob in self._async_jobs:
-            ajob.join()
+            ajob.get()
 
         # Return all the return values
         res = [a.output for a in self._async_jobs]
 
         self._async_jobs = []
         return res
-
-    def should_run_async(self):
-        for ajob in self._async_jobs:
-            if ajob.state != STATE_DONE:
-                return True
-        return False
 
     def set_description(self, description):
         self._description = self.format(description)
@@ -180,6 +180,12 @@ class Job(object):
     session = property(get_session, set_session)
 
     ### Decorators ###
+
+    def async(self, **kwargs):
+        def decorator(f):
+            f._is_async = True
+            return f
+        return decorator
 
     def default(self, name, **kwargs):
         def decorator(f):
@@ -242,6 +248,7 @@ class Job(object):
         self.env.print_values()
 
         self._print_banner("Starting Job", dash = "=")
+        entrypoint._is_entrypoint = True
         ret = entrypoint.fun(*args, **kwargs)
         self._print_banner("Job Finished", dash = "=")
         if entrypoint.is_main:

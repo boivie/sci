@@ -109,8 +109,9 @@ def zip_result():
     return build.format(zip_file)
 
 
-@build.step("Run single matrix job")
-def run_single_matrix_job(product, variant):
+@build.async()
+@build.step("Run single asynchronous job")
+def run_single_job(product, variant):
     """This job will be running on a separate machine, in parallel with
        a lot of other similar jobs. It will perform a few build steps."""
     build.env["PRODUCT"] = product
@@ -125,12 +126,14 @@ def run_single_matrix_job(product, variant):
 @build.step("Run matrix jobs")
 def run_matrix_jobs():
     """Running jobs asynchronously"""
+    results = []
     for product in build.env["PRODUCTS"]:
         for variant in build.env["VARIANTS"]:
-            build.async(run_single_matrix_job, args = [product, variant])
+            async_result = run_single_job(product, variant)
+            results.append(async_result)
 
-    for result in build.wait_async():
-        print("Result: " + result)
+    for result in results:
+        print("Result: " + result.get())
 
 
 @build.step("Send Report")
