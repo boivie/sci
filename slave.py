@@ -179,7 +179,7 @@ class ExecutionThread(threading.Thread):
             session = Session.create(session_id)
             run_job = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                    "run_job.py")
-            args = [run_job, session.id]
+            args = [run_job]
             stdout = open(session.logfile, "w")
             session.state = "running"
             session.save()

@@ -24,15 +24,13 @@ def dispatch_later(pipe, session_id):
     return session_id
 
 
-def do_dispatch(db, agent_id, agent_info, session_id, session):
+def do_dispatch(db, agent_id, agent_info, session_id):
     agent_url = "http://%s:%s" % (agent_info["ip"], agent_info["port"])
     print("DISPATCH TO AGENT, URL: '%s'" % agent_url)
 
     set_session_to_agent(db, session_id, agent_id)
     input = dict(session_id = session_id,
-                 build_id = session_id.split('-')[0],
-                 job_server = JOBSERVER_URL,
-                 run_info = session['run_info'])
+                 job_server = JOBSERVER_URL)
     client = HttpClient(agent_url)
     client.call('/dispatch', input = json.dumps(input))
 
@@ -88,7 +86,7 @@ def dispatch_be(session_id):
                     if not agent_info:
                         continue
 
-                    do_dispatch(db, agent_id, agent_info, session_id, session)
+                    do_dispatch(db, agent_id, agent_info, session_id)
                 return
             except redis.WatchError:
                 continue
@@ -113,9 +111,8 @@ def handle_agent_available(agent_id):
         logging.info("Agent %s available - nothing queued." % agent_id)
 
     if matched:
-        session = get_session(db, matched)
         agent_info = db.hgetall(jdb.KEY_AGENT % agent_id)
-        do_dispatch(db, agent_id, agent_info, matched, session)
+        do_dispatch(db, agent_id, agent_info, matched)
     else:
         db.sadd(jdb.KEY_AVAILABLE, agent_id)
 

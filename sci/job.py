@@ -295,17 +295,10 @@ class Job(object):
         # manually do it.
         client.call('/build/started/%s' % build_info['uuid'],
                     method = 'POST')
-        try:
-            res = Bootstrap.run(session, build_uuid = build_info['uuid'],
-                                jobserver = self.jobserver)
-        except Exception as e:
-#            client.call('/build/done/%s' % session.id,
-#                        input = {'result': 'error'})
-            raise e
-        else:
-            client.call('/build/done/%s' % build_info['uuid'],
-                        input = {'result': 'success',
-                                 'output': res})
+        res = Bootstrap.run(self.jobserver, session.id)
+        client.call('/build/done/%s' % build_info['uuid'],
+                    input = {'result': 'success',
+                             'output': res})
         return res
 
     def run(self, cmd, **kwargs):

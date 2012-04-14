@@ -93,40 +93,36 @@ class Bootstrap(object):
         return env
 
     @classmethod
-    def run(cls, session, build_uuid, jobserver, entrypoint_name = "",
-            args = [], kwargs = {}, env = None):
-        # Fetch build information
-        js = HttpClient(jobserver)
-        build_info = js.call('/build/%s.json' % build_uuid)
-        build_info = build_info['build']
+    def run(cls, job_server, session_id):
+        session = Session.load(session_id)
+        js = HttpClient(job_server)
 
-        # Fetch the job
-        job = js.call('/job/%s@%s' % (build_info['job_name'],
-                                      build_info['job_ref']))
+        # Fetch all info necessary
+        info = js.call('/build/session/%s' % session_id)
 
-        # Fetch the recipe
-        recipe_ref = build_info['recipe_ref']
         recipe_fname = os.path.join(session.path, 'build.py')
-        recipe = js.call('/recipe/%s.json' % recipe_ref)
         with open(recipe_fname, 'w') as f:
-            f.write(recipe['contents'])
+            f.write(info['recipe'])
 
+        run_info = info['session']['run_info'] or {}
+        env = run_info.get('env')
         if env:
             env = Environment.deserialize(env)
         else:
-            build_name = "%s-%d" % (build_info['job_name'],
-                                    build_info['number'])
-            env = Bootstrap.create_env(job['parameters'],
-                                       build_info['parameters'],
-                                       build_uuid, build_name)
+            env = Bootstrap.create_env(info['parameters'],
+                                       info['build']['parameters'],
+                                       info['build_uuid'], info['build_name'])
 
         mod = imp.new_module('recipe')
         mod.__file__ = recipe_fname
         execfile(recipe_fname, mod.__dict__)
 
         job = Bootstrap._find_job(mod)
-        entrypoint = Bootstrap._find_entrypoint(job, entrypoint_name)
+        job.jobserver = job_server
+        entrypoint = Bootstrap._find_entrypoint(job, run_info.get('step_fun'))
 
+        args = run_info.get('args', [])
+        kwargs = run_info.get('kwargs', {})
         ret = job._start(env, session, entrypoint, args, kwargs)
 
         # Update the session

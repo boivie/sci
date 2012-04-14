@@ -7,9 +7,8 @@ from jobserver.db import conn
 from jobserver.gitdb import config, create_commit, update_head
 from jobserver.gitdb import NoChangesException, CommitException
 from jobserver.webutils import abort, jsonify
-from jobserver.job import get_job, KEY_JOB
+from jobserver.job import get_job, KEY_JOB, merge_job_parameters
 from jobserver.build import KEY_BUILD, KEY_JOB_BUILDS, KEY_SESSION
-from jobserver.recipe import get_recipe_metadata
 
 
 urls = (
@@ -80,21 +79,8 @@ class GetPutJob:
                                 state = state, result = result))
         history.reverse()
 
+        params = merge_job_parameters(repo, results['settings'])
         # Add recipe metadata to build a parameter list
-        recipe_ref = results['settings'].get('recipe_ref')
-        if not recipe_ref:
-            recipe_ref = results['settings']['recipe_name']
-        recipe = get_recipe_metadata(repo, recipe_ref)
-        params = {}
-        for k, v in recipe['Parameters'].iteritems():
-            v['name'] = k
-            params[k] = v
-
-        # and override by the job's
-        for k, v in results['settings'].get('parameters', {}).iteritems():
-            for k2, v2 in v.iteritems():
-                params[k][k2] = v2
-
         return jsonify(history = history, parameters = params, **results)
 
 

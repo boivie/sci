@@ -5,8 +5,8 @@ import web
 from jobserver.gitdb import config, create_commit, update_head
 from jobserver.webutils import abort, jsonify
 from jobserver.gitdb import NoChangesException, CommitException
-from jobserver.recipe import get_recipe_ref, get_recipe_metadata_from_blob
-from jobserver.recipe import get_recipe_metadata
+from jobserver.recipe import get_recipe_metadata_from_blob
+from jobserver.recipe import get_recipe_metadata, get_recipe_contents
 
 urls = (
     '',                     'ListRecipes',
@@ -62,11 +62,7 @@ class GetPutRecipe:
 
     def GET(self, name):
         repo = config()
-        ref = get_recipe_ref(repo, name)
-        commit = repo.get_object(ref)
-        tree = repo.get_object(commit.tree)
-        mode, sha = tree['build.py']
-        data = repo.get_object(sha).data
+        ref, data = get_recipe_contents(repo, name)
         return jsonify(ref = ref,
                        contents = data,
                        metadata = get_recipe_metadata_from_blob(data))
