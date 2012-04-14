@@ -295,7 +295,8 @@ class Job(object):
         # manually do it.
         client.call('/build/started/%s' % build_info['uuid'],
                     method = 'POST')
-        res = Bootstrap.run(self.jobserver, session.id)
+        info = client.call('/build/session/%s' % session.id)
+        res = Bootstrap.run(self.jobserver, session.id, info)
         client.call('/build/done/%s' % build_info['uuid'],
                     input = {'result': 'success',
                              'output': res})

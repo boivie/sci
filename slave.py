@@ -176,17 +176,22 @@ class ExecutionThread(threading.Thread):
             item = get_item()
 
             session_id = json.loads(item)['session_id']
+
+            # Fetch session information
+            js = HttpClient(web.config._job_server)
+            info = js.call('/build/session/%s' % session_id)
+
             session = Session.create(session_id)
             run_job = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                    "run_job.py")
-            args = [run_job]
+            args = [run_job, web.config._job_server, session_id]
             stdout = open(session.logfile, "w")
             session.state = "running"
             session.save()
             proc = subprocess.Popen(args, stdin = subprocess.PIPE,
                                     stdout = stdout, stderr = subprocess.STDOUT,
                                     cwd = web.config._path)
-            proc.stdin.write(item)
+            proc.stdin.write(json.dumps(info))
             proc.stdin.close()
             send_busy(session_id)
             return_code = proc.wait()

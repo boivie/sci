@@ -69,12 +69,8 @@ class Bootstrap(object):
         return env
 
     @classmethod
-    def run(cls, job_server, session_id):
+    def run(cls, job_server, session_id, info):
         session = Session.load(session_id)
-        js = HttpClient(job_server)
-
-        # Fetch all info necessary
-        info = js.call('/build/session/%s' % session_id)
 
         recipe_fname = os.path.join(session.path, 'build.py')
         with open(recipe_fname, 'w') as f:
