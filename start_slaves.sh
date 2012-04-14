@@ -2,7 +2,7 @@
 
 CNT=$1
 PORT_BASE=6700
-KEY=foo
+JOBSERVER=http://localhost:6697
 
 for i in $(seq ${CNT})
 do
@@ -10,7 +10,7 @@ do
     SPATH="s${i}"
     echo "Slave $i running in $SPATH listening to $PORT"
     mkdir -p ${SPATH}
-    python slave.py -k ${KEY} --path ${SPATH} --port ${PORT} &
+    python slave.py --path ${SPATH} --port ${PORT} ${JOBSERVER} &
 done
 
 echo "Slaves started. Waiting for them to complete"

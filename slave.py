@@ -84,7 +84,7 @@ def send_available(session_id = None, result = None, output = None):
     web.config.last_status = int(time.time())
     print("%s checking in (available)" % web.config.node_id)
 
-    client = HttpClient("http://127.0.0.1:6697")
+    client = HttpClient(web.config._job_server)
     client.call("/agent/available/%s" % web.config.node_id,
                 input = json.dumps({'session_id': session_id,
                                     'result': result,
@@ -95,7 +95,7 @@ def send_busy(session_id):
     web.config.last_status = int(time.time())
     print("%s checking in (busy)" % web.config.node_id)
 
-    client = HttpClient("http://127.0.0.1:6697")
+    client = HttpClient(web.config._job_server)
     client.call("/agent/busy/%s" % web.config.node_id,
                 input = json.dumps({'session_id': session_id}))
 
@@ -104,7 +104,7 @@ def send_ping():
     web.config.last_status = int(time.time())
     print("%s pinging" % web.config.node_id)
 
-    client = HttpClient("http://127.0.0.1:6697")
+    client = HttpClient(web.config._job_server)
     client.call("/agent/ping/%s" % web.config.node_id,
                 method = "POST")
 
@@ -221,19 +221,17 @@ if __name__ == "__main__":
                       help = "port to use")
     parser.add_option("--path", dest = "path", default = ".",
                       help = "path to use")
-    parser.add_option("-k", "--key", dest = "key",
-                      help = "security key")
 
     (opts, args) = parser.parse_args()
 
+    web.config._job_server = args[0]
+
     if opts.config:
         raise NotImplemented()
-    if opts.key:
-        web.config.key = opts.key
-    if opts.path:
-        if not os.path.exists(opts.path):
-            os.makedirs(opts.path)
-        web.config._path = os.path.realpath(opts.path)
+
+    if not os.path.exists(opts.path):
+        os.makedirs(opts.path)
+    web.config._path = os.path.realpath(opts.path)
 
     Session.set_root_path(web.config._path)
 
@@ -246,8 +244,8 @@ if __name__ == "__main__":
 
     web.config.port = int(opts.port)
 
-    print("Registering at AHQ")
-    client = HttpClient("http://127.0.0.1:6697")
+    print("Registering")
+    client = HttpClient(web.config._job_server)
     hostname = "%s-%d" % (os.uname()[1], web.config.port)
     ret = client.call("/agent/register",
                       input = json.dumps({"id": web.config.node_id,
