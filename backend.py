@@ -11,8 +11,8 @@ from jobserver.build import set_build_artifacts
 from jobserver.build import set_session_to_agent, set_session_queued
 import jobserver.db as jdb
 
-JOBSERVER_URL = "http://localhost:6697"
-STORAGESERVER_URL = "http://localhost:6698"
+JOBSERVER_URL = "none"
+STORAGESERVER_URL = "none"
 
 
 def dispatch_later(pipe, session_id):
@@ -139,6 +139,16 @@ def worker(msg):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
+    if len(sys.argv) > 1:
+        jobserver_url = sys.argv[1]
+    else:
+        jobserver_url = "http://localhost:6697"
+    globals()['JOBSERVER_URL'] = jobserver_url
+    logging.info("Connecting to job server: '%s'" % jobserver_url)
+    js = HttpClient(globals()['JOBSERVER_URL'])
+    info = js.call('/info')
+    globals()['STORAGESERVER_URL'] = info['ss_url']
+    logging.info("Using storage server URL: '%s'" % info['ss_url'])
     logging.info("Backend ready to serve the world. And more.")
     db = jdb.conn()
     try:

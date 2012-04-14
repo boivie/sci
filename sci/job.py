@@ -133,7 +133,7 @@ class Job(object):
 
         self.env = Environment()
         self._default_fns = {}
-        self.artifacts = Artifacts(self, "http://localhost:6698")
+        self.artifacts = None,
         self.jobserver = "http://localhost:6697"
         self._async_jobs = []
 
@@ -231,10 +231,11 @@ class Job(object):
                 k, v = arg.split("=", 2)
                 params[k] = v
 
-    def _start(self, env, session, entrypoint, args, kwargs):
+    def _start(self, env, session, entrypoint, args, kwargs, ss_url):
         # Must set time first. It's used when printing
         self.start_time = time.time()
         self.session = session
+        self.artifacts = Artifacts(self, ss_url)
         self.build_uuid = env['SCI_BUILD_UUID']
         self.env = env
 

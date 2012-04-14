@@ -50,6 +50,7 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
                  created = now,
                  session_id = '%s-1' % build_id,
                  max_session = 0,  # will be incremented to 1 below
+                 ss_token = get_ss_token(build_id),
                  parameters = json.dumps(parameters),
                  artifacts = json.dumps([]))
     db.hmset(KEY_BUILD % build_id, build)
@@ -65,6 +66,10 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
     build['uuid'] = build_id
     db.hmset(KEY_BUILD % build_id, values)
     return build
+
+
+def get_ss_token(build_id):
+    return "SS" + build_id
 
 
 def set_build_artifacts(db, build_id, files):

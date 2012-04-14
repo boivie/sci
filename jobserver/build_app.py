@@ -58,6 +58,8 @@ class GetSession:
                        build_uuid = build_uuid,
                        build_name = "%s-%d" % (build['job_name'], build['number']),
                        recipe = recipe,
+                       ss_token = build['ss_token'],
+                       ss_url = web.config._ss_url,
                        parameters = parameters)
 
 

@@ -94,7 +94,8 @@ class Bootstrap(object):
 
         args = run_info.get('args', [])
         kwargs = run_info.get('kwargs', {})
-        ret = job._start(env, session, entrypoint, args, kwargs)
+        ss_url = info['ss_url']
+        ret = job._start(env, session, entrypoint, args, kwargs, ss_url)
 
         # Update the session
         session = Session.load(session.id)

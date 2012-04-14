@@ -21,6 +21,8 @@ from jobserver.slog_app import slog_app
 from jobserver.job_app import job_app
 from jobserver.recipe_app import recipe_app
 from jobserver.agent_app import agent_app
+from jobserver.webutils import jsonify
+
 
 urls = (
     '/build',  build_app,
@@ -28,9 +30,15 @@ urls = (
     '/job',    job_app,
     '/recipe', recipe_app,
     '/agent',  agent_app,
+    '/info',   'GetInfo',
 )
 
 app = web.application(urls, globals())
+
+
+class GetInfo:
+    def GET(self):
+        return jsonify(ss_url = web.config._ss_url)
 
 
 if __name__ == "__main__":
@@ -42,6 +50,9 @@ if __name__ == "__main__":
                       help = "port to use")
     parser.add_option("--path", dest = "path", default = ".",
                       help = "path to use")
+    parser.add_option("--ss", dest = "ss_url",
+                      default = "http://localhost:6698",
+                      help = "Storage server URL")
 
     (opts, args) = parser.parse_args()
 
@@ -49,6 +60,8 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.DEBUG)
 
     web.config._path = opts.path
+    web.config._ss_url = opts.ss_url
+
     for git_path in get_gits():
         if not os.path.exists(git_path):
             print("Creating initial repository: %s" % git_path)
