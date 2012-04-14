@@ -37,11 +37,11 @@ class CreateBuild:
         input = json.loads(data) if data else {}
 
         job, job_ref = get_job(repo, job_name, input.get('job_ref'))
-        build_id, build = new_build(db, job, job_ref,
-                                    parameters = input.get('parameters', {}),
-                                    description = input.get('description', ''))
+        build = new_build(db, job, job_ref,
+                          parameters = input.get('parameters', {}),
+                          description = input.get('description', ''))
 
-        return jsonify(id = build_id, **build)
+        return jsonify(**build)
 
 
 class StartBuild:
@@ -52,12 +52,12 @@ class StartBuild:
         input = json.loads(data) if data else {}
 
         job, job_ref = get_job(repo, job_name, input.get('job_ref'))
-        build_id, build = new_build(db, job, job_ref,
-                                    parameters = input.get('parameters', {}),
-                                    description = input.get('description', ''))
+        build = new_build(db, job, job_ref,
+                          parameters = input.get('parameters', {}),
+                          description = input.get('description', ''))
         set_session_queued(db, build['session_id'])
         queue(db, DispatchSession(build['session_id']))
-        return jsonify(id = build_id, **build)
+        return jsonify(**build)
 
 
 class StartedBuild:

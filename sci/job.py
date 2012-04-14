@@ -293,17 +293,17 @@ class Job(object):
         # Normally, the agents indicate when a session is started
         # and finishes, but since we run the job ourselves, we must
         # manually do it.
-        client.call('/build/started/%s' % build_info['id'],
+        client.call('/build/started/%s' % build_info['uuid'],
                     method = 'POST')
         try:
-            res = Bootstrap.run(session, build_uuid = build_info['id'],
+            res = Bootstrap.run(session, build_uuid = build_info['uuid'],
                                 jobserver = self.jobserver)
         except Exception as e:
 #            client.call('/build/done/%s' % session.id,
 #                        input = {'result': 'error'})
             raise e
         else:
-            client.call('/build/done/%s' % build_info['id'],
+            client.call('/build/done/%s' % build_info['uuid'],
                         input = {'result': 'success',
                                  'output': res})
         return res
@@ -325,7 +325,8 @@ class Job(object):
                              cwd = self.session.workspace)
         p.communicate()
         if p.returncode != 0:
-            self.error("Command failed")
+            self.error("External command returned result code %d: %s" %
+                       (p.returncode, cmd))
 
     def _format(self, tmpl, **kwargs):
         while True:

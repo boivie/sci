@@ -1,8 +1,8 @@
 import json
 import sys
 sys.path.append("../..")
-from flask import Blueprint, render_template, url_for, request, redirect, abort
-from sci.http_client import HttpClient, HttpError
+from flask import Blueprint, render_template, url_for, request, redirect
+from sci.http_client import HttpClient
 
 app = Blueprint('builds', __name__, template_folder='templates')
 
@@ -26,8 +26,7 @@ def start(id):
     data = {'parameters': parameters,
             'description': request.form.get('description', '')}
     info = js().call('/build/start/%s' % id, input = data)
-    print(info)
-    return "Build ID %s" % info['id']
+    return redirect(url_for('.show_build', id = id, build_no = info['number']))
 
 
 @app.route('/<id>/start', methods = ['GET'])

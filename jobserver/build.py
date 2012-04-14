@@ -60,8 +60,11 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
     number = db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
     values = {'number': number,
               'build_id': '%s-%d' % (job['name'], number)}
+    build['number'] = values['number']
+    build['build_id'] = values['build_id']
+    build['uuid'] = build_id
     db.hmset(KEY_BUILD % build_id, values)
-    return build_id, build
+    return build
 
 
 def set_build_artifacts(db, build_id, files):
