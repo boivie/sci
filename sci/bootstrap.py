@@ -42,35 +42,11 @@ class Bootstrap(object):
                 shutil.copyfileobj(src, dest)
 
     @classmethod
-    def handle_parameters(cls, env, parameters, param_def):
-        for param in parameters:
-            if not param in param_def:
-                print("Invalid parameter: %s" % param)
-                sys.exit(2)
-            env[param] = parameters[param]
-
-        # Verify that all 'required' parameters are set
-        for name in param_def:
-            param = param_def[name]
-            if param.get('required', False):
-                if not name in env:
-                    print("Required parameter %s not set!" % name)
-                    sys.exit(2)
-
-        # Set default parameters that have a static value
-        # (parameters that have a function as default value will have them
-        #  called just before starting the job)
-        for name in param_def:
-            param = param_def[name]
-            if 'default' in param and not name in env:
-                env[name] = param['default']
-
-    @classmethod
-    def create_env(cls, param_def, parameters, build_uuid, build_name):
+    def create_env(cls, parameters, build_uuid, build_name):
         env = Environment()
 
-        # Set provided parameters
-        Bootstrap.handle_parameters(env, parameters, param_def)
+        for param in parameters:
+            env[param] = parameters[param]
 
         env.define("SCI_BUILD_UUID", "The unique build identifier",
                    read_only = True, source = "initial environment",
@@ -109,9 +85,8 @@ class Bootstrap(object):
         if env:
             env = Environment.deserialize(env)
         else:
-            env = Bootstrap.create_env(info['parameters'],
-                                       info['build']['parameters'],
-                                       info['build_uuid'], info['build_name'])
+            env = Bootstrap.create_env(info['parameters'], info['build_uuid'],
+                                       info['build_name'])
 
         mod = imp.new_module('recipe')
         mod.__file__ = recipe_fname

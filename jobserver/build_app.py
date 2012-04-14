@@ -43,12 +43,22 @@ class GetSession:
                                           build.get('recipe_ref'))
         job, ref = get_job(repo, build['job_name'], build.get('job_ref'))
 
+        # Calculate the actual parameters - setting defaults if static value.
+        # (parameters that have a function as default value will have them
+        #  called just before starting the job)
+        param_def = merge_job_parameters(repo, job)
+        parameters = build['parameters']
+
+        for name in param_def:
+            param = param_def[name]
+            if 'default' in param and not name in parameters:
+                parameters[name] = param['default']
+
         return jsonify(session = session,
                        build_uuid = build_uuid,
                        build_name = "%s-%d" % (build['job_name'], build['number']),
-                       build = build,
                        recipe = recipe,
-                       parameters = merge_job_parameters(repo, job))
+                       parameters = parameters)
 
 
 class CreateBuild:
