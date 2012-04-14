@@ -80,7 +80,7 @@ class Bootstrap(object):
         with open(recipe_fname, 'w') as f:
             f.write(info['recipe'])
 
-        run_info = info['session']['run_info'] or {}
+        run_info = info['run_info']
         env = run_info.get('env')
         if env:
             env = Environment.deserialize(env)

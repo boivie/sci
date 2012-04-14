@@ -54,7 +54,7 @@ class GetSession:
             if 'default' in param and not name in parameters:
                 parameters[name] = param['default']
 
-        return jsonify(session = session,
+        return jsonify(run_info = session['run_info'] or {},
                        build_uuid = build_uuid,
                        build_name = "%s-%d" % (build['job_name'], build['number']),
                        recipe = recipe,
