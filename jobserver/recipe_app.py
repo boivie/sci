@@ -23,7 +23,7 @@ class ListRecipes:
         for name in repo.refs.keys():
             if not name.startswith('refs/heads/recipes/'):
                 continue
-            metadata = get_recipe_metadata(repo, repo.refs[name])
+            metadata = get_recipe_metadata(repo, name, repo.refs[name])
             info = {'id': name[19:],
                     'description': metadata.get('Description', '')}
             if metadata.get('Tags'):
