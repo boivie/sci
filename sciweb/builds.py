@@ -120,7 +120,7 @@ def show_success(id):
 def show_build(id, build_no, active_tab = None):
     info = js().call('/build/%s,%d' % (id, build_no))
 
-    log = [json.loads(l) for l in info.get('log', [])]
+    log = info['log']
     for l in log:
         l['dt'] = (l['t'] - log[0]['t']) / 1000
     log = simplify_log(log)

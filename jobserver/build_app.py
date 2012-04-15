@@ -95,6 +95,7 @@ class GetBuild:
             abort(404, 'Invalid Build ID')
 
         log = db.lrange(KEY_SLOG % build_id, 0, 1000)
+        log = [json.loads(l) for l in log]
         # Fetch information about all sessions
         sessions = []
         for i in range(1, int(build['max_session']) + 1):
