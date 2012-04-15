@@ -71,7 +71,7 @@ class DoneBuild:
     def POST(self, build_id):
         db = conn()
         input = json.loads(web.data())
-        set_session_done(db, 'B%s-1' % build_id, input['result'], input['output'])
+        set_session_done(db, 'B%s-1' % build_id, input['result'], input['output'], None)
         return jsonify()
 
 
@@ -95,9 +95,20 @@ class GetBuild:
             abort(404, 'Invalid Build ID')
 
         log = db.lrange(KEY_SLOG % build_id, 0, 1000)
-        # Fetch state and result for the main session also
-        session = get_session(db, build_id + '-1')
-        build['state'] = session['state']
-        build['result'] = session['result']
+        # Fetch information about all sessions
+        sessions = []
+        for i in range(1, int(build['max_session']) + 1):
+            s = get_session(db, '%s-%d' % (build_id, i))
+            ri = s['run_info'] or {}
+            args = ", ".join(ri.get('args', []))
+            title = "%s(%s)" % (ri.get('step_name', 'main'), args)
+            sessions.append({'num': i,
+                             'agent': s['agent'],
+                             'title': title,
+                             'log_file': s['log_file'],
+                             'parent': s['parent'],
+                             'state': s['state'],
+                             'result': s['result']})
         return jsonify(build = build,
-                       log = log)
+                       log = log,
+                       sessions = sessions)

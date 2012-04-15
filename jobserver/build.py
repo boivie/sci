@@ -102,8 +102,9 @@ def create_session(db, build_id, parent = None, labels = [],
                    result = RESULT_UNKNOWN,
                    parent = parent,
                    labels = ",".join(labels),
-                   agent = None,
+                   agent = '',
                    run_info = json.dumps(run_info),
+                   log_file = '',
                    output = json.dumps(None))
     session_no = db.hincrby(KEY_BUILD % build_id, 'max_session', 1)
     session_id = '%s-%s' % (build_id, session_no)
@@ -122,10 +123,11 @@ def get_session(db, session_id):
     return session
 
 
-def set_session_done(db, session_id, result, output):
+def set_session_done(db, session_id, result, output, log_file):
     db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_DONE,
                                         'result': result,
-                                        'output': json.dumps(output)})
+                                        'output': json.dumps(output),
+                                        'log_file': log_file})
 
 
 def set_session_queued(db, session_id):

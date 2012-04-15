@@ -2,13 +2,6 @@
 {% extends "job_base.html" %}
 {% block title %}{{build.number}} - {{build.build_id}}{% endblock %}
 {% block subcontents %}
-{% if build_no == 0 %}
-    <div class="row">
-      <div class="span12">
-	No build matches this criteria.
-      </div>
-    </div>
-{% else %}
     <div class="row">
       <div class="span12">
 	<h2>#{{build.number}} - {{build.build_id}}</h2>
@@ -19,14 +12,14 @@
 {% if build.description %}
 	<p class="lead">{{build.description}}</p>
 {% endif %}
-	<p>Started {{build.created|pretty_date}} from job <a href="{{build.job_url}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{build.recipe_url}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
-{% if build.result == 'success' %}
+	<p>Started {{build.created|pretty_date}} from job <a href="{{url_for('.show_home', id = build.job_name)}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{url_for('recipes.show', id = build.recipe_name)}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
+{% if sessions[0].result == 'success' %}
 	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
-{% elif build.result == 'failed' %}
+{% elif sessions[0].result == 'failed' %}
 	<div class="alert alert-error"><strong>Failed!</strong> This build finished with errors.</div>
-{% elif build.result == 'error' %}
+{% elif sessions[0].result == 'error' %}
 	<div class="alert alert-error"><strong>Danger, Will Robinson!</strong> This build finished with errors.</div>
-{% elif build.result == 'aborted' %}
+{% elif sessions[0].result == 'aborted' %}
 	<div class="alert alert-error">This build was aborted.</div>
 {% endif %}
 {% if build.parameters %}
@@ -56,7 +49,15 @@
 {% endif %}
 {% endfor %}
 	 </ul>
+	 <h3>Build Sessions</h3>
+	 <ul>
+{% for session in sessions %}
+<li><strong>{{session.title}}</strong><br/>executed on <a href="{{url_for('agents.show', id = session.agent)}}">{{session.agent|short_id}}</a>
+{% if session.log_file %}
+(<a href="{{session.log_file}}">LOG</a>)</li>
+{% endif %}
+{% endfor %}
+	 </ul>
       </div>
     </div>
-{% endif %}
 {% endblock %}

@@ -80,7 +80,8 @@ class GetLog:
                 yield data
 
 
-def send_available(session_id = None, result = None, output = None):
+def send_available(session_id = None, result = None, output = None,
+                   log_file = None):
     web.config.last_status = int(time.time())
     print("%s checking in (available)" % web.config.node_id)
 
@@ -88,7 +89,8 @@ def send_available(session_id = None, result = None, output = None):
     client.call("/agent/available/%s" % web.config.node_id,
                 input = json.dumps({'session_id': session_id,
                                     'result': result,
-                                    'output': output}))
+                                    'output': output,
+                                    'log_file': log_file}))
 
 
 def send_busy(session_id):
@@ -211,8 +213,16 @@ class ExecutionThread(threading.Thread):
             else:
                 print("Job terminated")
 
+            url = "/f/%s/%s.log" % (info['build_uuid'], session_id)
+            ss = HttpClient(info['ss_url'])
+            ss_res = ss.call(url, method = 'PUT',
+                             input = open(session.logfile, 'rb'))
+            if ss_res['status'] != 'ok':
+                print("FAILED TO SEND LOG FILE")
+                ss_res['url'] = ''
+
             output = session.return_value
-            send_available(session_id, result, output)
+            send_available(session_id, result, output, ss_res['url'])
 
 
 if __name__ == "__main__":

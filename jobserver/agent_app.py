@@ -62,7 +62,8 @@ class CheckInAvailable:
         data = json.loads(web.data())
         session_id = data.get('session_id')
         if session_id:
-            set_session_done(db, session_id, data['result'], data['output'])
+            set_session_done(db, session_id, data['result'], data['output'],
+                             data['log_file'])
             add_slog(db, session_id, SessionDone(data['result']))
 
         db.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,

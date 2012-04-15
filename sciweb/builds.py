@@ -107,38 +107,30 @@ def simplify_log(log):
 @app.route('/<id>/latest', methods = ['GET'])
 def show_latest(id):
     info = js().call('/job/%s' % id)
-    return show_build(id, info.get('latest_no', 0), info, 'latest')
+    return show_build(id, info.get('latest_no', 0), 'latest')
 
 
 @app.route('/<id>/success', methods = ['GET'])
 def show_success(id):
     info = js().call('/job/%s' % id)
-    return show_build(id, info.get('success_no', 0), info, 'success')
+    return show_build(id, info.get('success_no', 0), 'success')
 
 
 @app.route('/<id>/<int:build_no>', methods = ['GET'])
-def show_build(id, build_no, info = None, active_tab = None):
-    if not info:
-        info = js().call('/job/%s' % id)
-    if build_no != 0:
-        info = js().call('/build/%s,%d' % (id, build_no))
-        build_info = info['build']
-        build_info['job_url'] = url_for('.show_home', id = build_info['job_name'])
-        build_info['recipe_url'] = url_for('recipes.show', id = build_info['recipe_name'])
-    else:
-        build_info = {}
+def show_build(id, build_no, active_tab = None):
+    info = js().call('/build/%s,%d' % (id, build_no))
 
     log = [json.loads(l) for l in info.get('log', [])]
     for l in log:
         l['dt'] = (l['t'] - log[0]['t']) / 1000
     log = simplify_log(log)
+
     return render_template('job_show.html',
                            id = id,
                            name = id,
-                           build_no = build_no,
                            active_tab = active_tab,
-                           job = info,
-                           build = build_info,
+                           build = info['build'],
+                           sessions = info['sessions'],
                            log = log)
 
 
