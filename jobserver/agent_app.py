@@ -5,11 +5,14 @@ import web
 
 from jobserver.utils import get_ts
 import jobserver.db as jdb
+from jobserver.gitdb import config
 from jobserver.webutils import abort, jsonify
-from jobserver.build import create_session, get_session
+from jobserver.build import create_session, get_session, get_build_info
 from jobserver.build import set_session_done, set_session_running
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
+from jobserver.job import get_job, merge_job_parameters
 from jobserver.queue import queue, DispatchSession, AgentAvailable
+from jobserver.recipe import get_recipe_contents
 from jobserver.slog import add_slog
 from sci.slog import SessionStarted, SessionDone, RunAsync
 
@@ -22,6 +25,7 @@ urls = (
     '/ping/A([0-9a-f]{40})',      'Ping',
     '/register',                  'Register',
     '/result/B([0-9a-f]{40})-([0-9]+)',    'GetSessionResult',
+    '/session/(.+)',              'GetSessionInfo',
 )
 
 agent_app = web.application(urls, locals())
@@ -122,6 +126,37 @@ class GetSessionResult:
                 return jsonify(result = info['result'],
                                output = info['output'])
             time.sleep(0.5)
+
+
+class GetSessionInfo:
+    def GET(self, session_id):
+        db = jdb.conn()
+        repo = config()
+        session = get_session(db, session_id)
+        build_uuid = session_id.split('-')[0]
+        build = get_build_info(db, build_uuid)
+        ref, recipe = get_recipe_contents(repo, build['recipe_name'],
+                                          build.get('recipe_ref'))
+        job, ref = get_job(repo, build['job_name'], build.get('job_ref'))
+
+        # Calculate the actual parameters - setting defaults if static value.
+        # (parameters that have a function as default value will have them
+        #  called just before starting the job)
+        param_def = merge_job_parameters(repo, job)
+        parameters = build['parameters']
+
+        for name in param_def:
+            param = param_def[name]
+            if 'default' in param and not name in parameters:
+                parameters[name] = param['default']
+
+        return jsonify(run_info = session['run_info'] or {},
+                       build_uuid = build_uuid,
+                       build_name = "%s-%d" % (build['job_name'], build['number']),
+                       recipe = recipe,
+                       ss_token = build['ss_token'],
+                       ss_url = web.config._ss_url,
+                       parameters = parameters)
 
 
 class GetAgentsInfo:

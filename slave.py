@@ -179,7 +179,7 @@ class ExecutionThread(threading.Thread):
 
             # Fetch session information
             js = HttpClient(web.config._job_server)
-            info = js.call('/build/session/%s' % session_id)
+            info = js.call('/agent/session/%s' % session_id)
 
             session = Session.create(session_id)
             run_job = os.path.join(os.path.dirname(os.path.realpath(__file__)),
