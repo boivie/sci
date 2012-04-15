@@ -3,9 +3,8 @@ import time
 import types
 
 from sci.slog import JobDone, SetDescription, ArtifactAdded, SetBuildId
-from jobserver.build import KEY_BUILD
+from jobserver.build import KEY_BUILD, add_build_artifact
 from jobserver.job import KEY_JOB
-from jobserver.queue import queue, UpdateArtifacts
 
 KEY_SLOG = 'slog:%s'
 
@@ -28,8 +27,7 @@ def DoSetBuildId(db, build_id, session_no, li):
 
 
 def DoArtifactAdded(db, build_id, session_no, li):
-    # Let the backend update the list of artifacts
-    queue(db, UpdateArtifacts(build_id))
+    add_build_artifact(db, build_id, li['params'])
 
 
 SLOG_HANDLERS = {JobDone.type: DoJobDone,

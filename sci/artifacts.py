@@ -32,7 +32,9 @@ class ArtifactsBase(object):
     def _add(self, local_filename, remote_filename, **kwargs):
         raise NotImplemented()
 
-    def add(self, local_filename, remote_filename = None, **kwargs):
+    def add(self, local_filename, remote_filename = None,
+            description = "", **kwargs):
+        description = self.job.format(description, **kwargs)
         local_filename = self.job.format(local_filename, **kwargs)
         if self.job.debug:
             print("Storing '%s' on the storage node" % local_filename)
@@ -43,7 +45,7 @@ class ArtifactsBase(object):
             remote_filename = os.path.relpath(local_filename,
                                               self.job.session.workspace)
         url = self._add(local_filename, remote_filename, **kwargs)
-        self.job.slog(ArtifactAdded(remote_filename, url))
+        self.job.slog(ArtifactAdded(remote_filename, url, description))
         return Artifact(remote_filename)
 
     def get(self, remote_filename, local_filename = None, **kwargs):
@@ -59,7 +61,8 @@ class ArtifactsBase(object):
     def _get(self, remote_filename, local_filename, **kwargs):
         raise NotImplemented()
 
-    def create_zip(self, zip_filename, input_files, upload = True, **kwargs):
+    def create_zip(self, zip_filename, input_files, upload = True,
+                   description = "", **kwargs):
         zip_filename = self.job.format(zip_filename, **kwargs)
         input_files = self.job.format(input_files, **kwargs)
 
@@ -76,7 +79,7 @@ class ArtifactsBase(object):
             zf.write(fname, os.path.relpath(fname, self.job.session.workspace))
         zf.close()
         if upload:
-            return self.add(zip_filename)
+            return self.add(zip_filename, description = description)
         else:
             return Artifact(zip_filename)
 

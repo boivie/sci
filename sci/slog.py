@@ -112,6 +112,8 @@ class AsyncJoined(LogItem):
 class ArtifactAdded(LogItem):
     type = 'artifact-added'
 
-    def __init__(self, filename, url):
+    def __init__(self, filename, url, description = None):
         self.params = dict(filename = filename,
                            url = url)
+        if description:
+            self.params['description'] = description

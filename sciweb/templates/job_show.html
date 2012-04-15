@@ -49,7 +49,11 @@
 	 <h3>Build Artifacts</h3>
 	 <ul>
 {% for entry in build.artifacts %}
+{% if entry.description %}
+           <li><a href="{{entry.url}}" title="{{entry.filename}}">{{entry.description}}</a></li>
+{% else %}
            <li><a href="{{entry.url}}">{{entry.filename}}</a></li>
+{% endif %}
 {% endfor %}
 	 </ul>
       </div>

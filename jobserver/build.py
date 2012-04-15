@@ -72,8 +72,16 @@ def get_ss_token(build_id):
     return "SS" + build_id
 
 
-def set_build_artifacts(db, build_id, files):
-    db.hset(KEY_BUILD % build_id, 'artifacts', json.dumps(files))
+def add_build_artifact(db, build_id, entry):
+    key = KEY_BUILD % build_id
+
+    def update(pipe):
+        files = json.loads(db.hget(key, 'artifacts'))
+        files.append(entry)
+        pipe.multi()
+        pipe.hset(key, 'artifacts', json.dumps(files))
+
+    db.transaction(update, key)
 
 
 def get_build_info(db, build_id):

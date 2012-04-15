@@ -105,7 +105,9 @@ def zip_result():
     zip_file = "result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip"
     input_files = "out/target/product/{{PRODUCT}}/*.img"
 
-    build.artifacts.create_zip(zip_file, input_files)
+    description = "Flashable images for {{PRODUCT}}-{{VARIANT}}"
+    build.artifacts.create_zip(zip_file, input_files,
+                               description = description)
     return build.format(zip_file)
 
 
