@@ -70,7 +70,7 @@ class GetPutJob:
         for build_id in db.lrange(KEY_JOB_BUILDS % name, -10, -1):
             number, created, description, bid = \
                 db.hmget(KEY_BUILD % build_id, build_keys)
-            session_id = build_id + '-1'
+            session_id = build_id + '-0'
             state, result = db.hmget(KEY_SESSION % session_id, session_keys)
 
             history.append(dict(number = number, created = created,

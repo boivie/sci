@@ -48,8 +48,8 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
                  build_id = '',  # this is the external id
                  description = description,
                  created = now,
-                 session_id = '%s-1' % build_id,
-                 max_session = 0,  # will be incremented to 1 below
+                 session_id = '%s-0' % build_id,
+                 next_sess_id = 0,  # will be incremented to 1 below
                  ss_token = get_ss_token(build_id),
                  parameters = json.dumps(parameters),
                  artifacts = json.dumps([]))
@@ -106,7 +106,7 @@ def create_session(db, build_id, parent = None, labels = [],
                    run_info = json.dumps(run_info),
                    log_file = '',
                    output = json.dumps(None))
-    session_no = db.hincrby(KEY_BUILD % build_id, 'max_session', 1)
+    session_no = db.hincrby(KEY_BUILD % build_id, 'next_sess_id', 1) - 1
     session_id = '%s-%s' % (build_id, session_no)
     db.hmset(KEY_SESSION % session_id, session)
     return session_no

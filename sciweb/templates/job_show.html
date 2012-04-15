@@ -33,7 +33,7 @@
 {% endif %}
        <h3>Log</h3>
        <ul class="unstyled">
-{% for entry in log if entry.s == 1 %}
+{% for entry in log if entry.s == 0 %}
 {{ macros.log_entry(entry, log) }}
 {% endfor %}
        </ul>

@@ -63,7 +63,7 @@ class StartBuild:
 class StartedBuild:
     def POST(self, build_id):
         db = conn()
-        set_session_running(db, 'B%s-1' % build_id)
+        set_session_running(db, 'B%s-0' % build_id)
         return jsonify()
 
 
@@ -71,7 +71,7 @@ class DoneBuild:
     def POST(self, build_id):
         db = conn()
         input = json.loads(web.data())
-        set_session_done(db, 'B%s-1' % build_id, input['result'], input['output'], None)
+        set_session_done(db, 'B%s-0' % build_id, input['result'], input['output'], None)
         return jsonify()
 
 
@@ -98,7 +98,7 @@ class GetBuild:
         log = [json.loads(l) for l in log]
         # Fetch information about all sessions
         sessions = []
-        for i in range(1, int(build['max_session']) + 1):
+        for i in range(int(build['next_sess_id'])):
             s = get_session(db, '%s-%d' % (build_id, i))
             ri = s['run_info'] or {}
             args = ", ".join(ri.get('args', []))
