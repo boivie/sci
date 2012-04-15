@@ -316,6 +316,7 @@ class Job(object):
         devnull = open("/dev/null", "r")
         p = subprocess.Popen(cmd,
                              shell = True,
+                             executable = '/bin/bash',
                              stdin = devnull, stdout = sys.stdout,
                              stderr = sys.stderr,
                              cwd = self.session.workspace)
