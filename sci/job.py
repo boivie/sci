@@ -311,6 +311,7 @@ class Job(object):
 
            If the command fails, this method will raise an error
         """
+        sys.stdout.flush()
         cmd = self.format(cmd, **kwargs)
         devnull = open("/dev/null", "r")
         p = subprocess.Popen(cmd,
@@ -319,6 +320,7 @@ class Job(object):
                              stderr = sys.stderr,
                              cwd = self.session.workspace)
         p.communicate()
+        sys.stdout.flush()
         if p.returncode != 0:
             self.error("External command returned result code %d: %s" %
                        (p.returncode, cmd))
