@@ -31,12 +31,10 @@ RESULT_ABORTED = 'aborted'
 
 
 def new_build(db, job, job_ref, parameters = {}, description = ''):
-    repo = config()
     recipe_ref = job.get('recipe_ref')
     if not recipe_ref:
+        repo = config()
         recipe_ref = get_recipe_ref(repo, job['recipe'])
-
-    now = get_ts()
 
     # Insert the build (first without build number, as we don't know it)
     build_id = 'B%s' % random_sha1()
@@ -45,9 +43,9 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
                  recipe = job['recipe'],
                  recipe_ref = recipe_ref,
                  number = 0,
-                 build_id = '',  # this is the external id
+                 build_id = '',
                  description = description,
-                 created = now,
+                 created = get_ts(),
                  session_id = '%s-0' % build_id,
                  next_sess_id = 0,  # will be incremented to 1 below
                  ss_token = get_ss_token(build_id),
@@ -97,8 +95,7 @@ def get_build_info(db, build_id):
 
 def create_session(db, build_id, parent = None, labels = [],
                    run_info = None, state = SESSION_STATE_NEW):
-    session = dict(created = get_ts(),
-                   state = state,
+    session = dict(state = state,
                    result = RESULT_UNKNOWN,
                    parent = parent,
                    labels = ",".join(labels),
@@ -116,7 +113,7 @@ def get_session(db, session_id):
     session = db.hgetall(KEY_SESSION % session_id)
     if not session:
         return None
-    session['labels'] = session['labels'].split(',')
+    session['labels'] = set(session['labels'].split(','))
     session['labels'].remove('')  # if labels is empty
     session['run_info'] = json.loads(session['run_info'])
     session['output'] = json.loads(session['output'])
