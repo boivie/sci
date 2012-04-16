@@ -19,7 +19,7 @@ def get_job(repo, name, ref = None):
 
 def merge_job_parameters(repo, job):
     params = {}
-    recipe = get_recipe_metadata(repo, job['recipe_name'], job.get('recipe_ref'))
+    recipe = get_recipe_metadata(repo, job['recipe'], job.get('recipe_ref'))
 
     for k, v in recipe['Parameters'].iteritems():
         v['name'] = k

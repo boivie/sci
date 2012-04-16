@@ -34,7 +34,7 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
     repo = config()
     recipe_ref = job.get('recipe_ref')
     if not recipe_ref:
-        recipe_ref = get_recipe_ref(repo, job['recipe_name'])
+        recipe_ref = get_recipe_ref(repo, job['recipe'])
 
     now = get_ts()
 
@@ -42,7 +42,7 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
     build_id = 'B%s' % random_sha1()
     build = dict(job_name = job['name'],
                  job_ref = job_ref,
-                 recipe_name = job['recipe_name'],
+                 recipe = job['recipe'],
                  recipe_ref = recipe_ref,
                  number = 0,
                  build_id = '',  # this is the external id

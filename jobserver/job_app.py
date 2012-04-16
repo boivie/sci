@@ -96,7 +96,7 @@ class ListJobs:
             job, job_ref = get_job(repo, job_name, repo.refs[name])
 
             info = dict(id = job_name,
-                        recipe_name = job['recipe_name'],
+                        recipe = job['recipe'],
                         latest_no = db.llen(KEY_JOB_BUILDS % job_name))
             if 'recipe_ref' in job:
                 info['recipe_ref'] = job['recipe_ref']

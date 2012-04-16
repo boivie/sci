@@ -136,7 +136,7 @@ class GetSessionInfo:
         session = get_session(db, session_id)
         build_uuid = session_id.split('-')[0]
         build = get_build_info(db, build_uuid)
-        ref, recipe = get_recipe_contents(repo, build['recipe_name'],
+        ref, recipe = get_recipe_contents(repo, build['recipe'],
                                           build.get('recipe_ref'))
         job, ref = get_job(repo, build['job_name'], build.get('job_ref'))
 

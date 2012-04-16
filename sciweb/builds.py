@@ -56,7 +56,7 @@ def show_start(id):
 def show_home(id):
     info = js().call('/job/%s' % id)
     info['settings']['recipe_url'] = url_for('recipes.show',
-                                             id = info['settings']['recipe_name'])
+                                             id = info['settings']['recipe'])
     return render_template('job_settings.html',
                            id = id,
                            name = id,
