@@ -51,6 +51,9 @@ class Bootstrap(object):
         env.define("SCI_BUILD_UUID", "The unique build identifier",
                    read_only = True, source = "initial environment",
                    value = build_uuid)
+        env.define("SCI_BUILD_ID", "The user-defined build identifier",
+                   source = "initial environment",
+                   value = build_name)
         env.define("SCI_BUILD_NAME", "The unique build name",
                    read_only = True, source = "initial environment",
                    value = build_name)

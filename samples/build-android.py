@@ -102,7 +102,7 @@ make -j{{NUMBER_CPUS}}""")
 
 @build.step("ZIP resulted files")
 def zip_result():
-    zip_file = "result-{{BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip"
+    zip_file = "result-{{SCI_BUILD_ID}}-{{PRODUCT}}-{{VARIANT}}.zip"
     input_files = "out/target/product/{{PRODUCT}}/*.img"
 
     description = "Flashable images for {{PRODUCT}}-{{VARIANT}}"
@@ -146,8 +146,8 @@ def send_report():
 @build.main()
 def main():
     """This is the job's entry point."""
-    build.env["BUILD_ID"] = create_build_id()
-    build.build_id = "{{BUILD_ID}}"
+    # Note: setting build.build_id also defines SCI_BUILD_ID
+    build.build_id = create_build_id()
     create_manifest()
     run_matrix_jobs()
     send_report()

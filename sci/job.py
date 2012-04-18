@@ -162,6 +162,7 @@ class Job(object):
 
     def set_build_id(self, build_id):
         self._build_id = self.format(build_id)
+        self.env['SCI_BUILD_ID'] = self._build_id
         self.slog(SetBuildId(self._build_id))
 
     def get_build_id(self):
