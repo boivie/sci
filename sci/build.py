@@ -1,6 +1,6 @@
 """
-    sci.job
-    ~~~~~~~
+    sci.build
+    ~~~~~~~~~
 
     Simple Continuous Integration
 
@@ -22,11 +22,11 @@ from .slog import (StepBegun, StepDone, StepJoinBegun, StepJoinDone,
 re_var = re.compile("{{(.*?)}}")
 
 
-class JobException(Exception):
+class BuildException(Exception):
     pass
 
 
-class JobFunction(object):
+class BuildFunction(object):
     def __init__(self, name, fun, **kwargs):
         self.name = name
         self.fun = fun
@@ -37,9 +37,9 @@ class JobFunction(object):
         return self.fun(*args, **kwargs)
 
 
-class Step(JobFunction):
+class Step(BuildFunction):
     def __init__(self, job, name, fun, **kwargs):
-        JobFunction.__init__(self, name, fun, **kwargs)
+        BuildFunction.__init__(self, name, fun, **kwargs)
         self.job = job
         self._is_async = False
 
@@ -68,9 +68,9 @@ class Step(JobFunction):
         return ret
 
 
-class MainFn(JobFunction):
+class MainFn(BuildFunction):
     def __init__(self, name, fun, **kwargs):
-        JobFunction.__init__(self, name, fun, **kwargs)
+        BuildFunction.__init__(self, name, fun, **kwargs)
         self.is_main = True
 
 STATE_PREPARED, STATE_RUNNING, STATE_DONE = range(3)
@@ -117,7 +117,7 @@ class AsyncJob(object):
         return self.output
 
 
-class Job(object):
+class Build(object):
     def __init__(self, import_name, debug = False):
         self._import_name = import_name
         # The session is known when running - not this early
@@ -172,7 +172,7 @@ class Job(object):
 
     def set_session(self, session):
         if self._session:
-            raise JobException("The session can only be set once")
+            raise BuildException("The session can only be set once")
         self._session = session
 
     def get_session(self):
@@ -262,10 +262,10 @@ class Job(object):
         HttpClient(self.jobserver).call(url, input = item.serialize(), raw = True)
 
     def start(self, params = {}):
-        """Start a job manually (for testing)
+        """Start a build manually (for testing)
 
-           This method is only used when running a job manually by
-           invoking the job's script from the command line."""
+           This method is only used when running a build manually by
+           invoking the build script from the command line."""
         logging.basicConfig(level=logging.DEBUG)
         client = HttpClient(self.jobserver)
 
@@ -355,4 +355,4 @@ class Job(object):
 
     def error(self, what):
         self.slog(JobErrorThrown(what))
-        raise JobException(what)
+        raise BuildException(what)

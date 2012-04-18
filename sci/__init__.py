@@ -8,4 +8,4 @@
     :license: Apache License 2.0
 """
 
-from .job import Job
+from .build import Build

@@ -43,9 +43,9 @@
 #    default: [eng, userdebug, user]
 #
 import time
-from sci import Job
+from sci import Build
 
-build = Job(__name__, debug = True)
+build = Build(__name__, debug = True)
 
 
 @build.default("PRODUCTS")

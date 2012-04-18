@@ -17,20 +17,20 @@ from .http_client import HttpClient, HttpRequest
 
 class Bootstrap(object):
     @classmethod
-    def _find_job(cls, module):
-        from .job import Job
-        # Find the 'job' variable
+    def _find_build(cls, module):
+        from .build import Build
+        # Find the 'build' variable
         for k in dir(module):
             var = getattr(module, k)
-            if issubclass(var.__class__, Job):
+            if issubclass(var.__class__, Build):
                 return var
-        raise Exception("Couldn't locate the Job variable")
+        raise Exception("Couldn't locate the Build variable")
 
     @classmethod
-    def _find_entrypoint(cls, job, name):
+    def _find_entrypoint(cls, build, name):
         if not name:
-            return job._mainfn
-        for step in job.steps:
+            return build._mainfn
+        for step in build.steps:
             if step.fun.__name__ == name:
                 return step
         raise Exception("Couldn't locate entry point")
@@ -91,14 +91,14 @@ class Bootstrap(object):
         mod.__file__ = recipe_fname
         execfile(recipe_fname, mod.__dict__)
 
-        job = Bootstrap._find_job(mod)
-        job.jobserver = job_server
-        entrypoint = Bootstrap._find_entrypoint(job, run_info.get('step_fun'))
+        build = Bootstrap._find_build(mod)
+        build.jobserver = job_server
+        entrypoint = Bootstrap._find_entrypoint(build, run_info.get('step_fun'))
 
         args = run_info.get('args', [])
         kwargs = run_info.get('kwargs', {})
         ss_url = info['ss_url']
-        ret = job._start(env, session, entrypoint, args, kwargs, ss_url)
+        ret = build._start(env, session, entrypoint, args, kwargs, ss_url)
 
         # Update the session
         session = Session.load(session.id)
