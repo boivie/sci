@@ -12,7 +12,7 @@
 {% if build.description %}
 	<p class="lead">{{build.description}}</p>
 {% endif %}
-	<p>Started {{build.created|pretty_date}} from job <a href="{{url_for('.show_home', id = build.job_name)}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{url_for('recipes.show', id = build.recipe_name)}}">{{build.recipe_name}}</a> ({{build.recipe_ref|short_id}}).</p>
+	<p>Started {{build.created|pretty_date}} from job <a href="{{url_for('.show_home', id = build.job_name)}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{url_for('recipes.show', id = build.recipe)}}">{{build.recipe}}</a> ({{build.recipe_ref|short_id}}).</p>
 {% if sessions[0].result == 'success' %}
 	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
 {% elif sessions[0].result == 'failed' %}
