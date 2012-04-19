@@ -1,4 +1,3 @@
-import json
 import sys
 sys.path.append("../..")
 from flask import Blueprint, render_template, url_for, request, redirect

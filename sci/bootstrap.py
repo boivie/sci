@@ -8,11 +8,10 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import os, shutil, imp, sys, socket
+import os, imp, socket
 from datetime import datetime
 from .session import Session
 from .environment import Environment
-from .http_client import HttpClient, HttpRequest
 
 
 class Bootstrap(object):
@@ -34,12 +33,6 @@ class Bootstrap(object):
             if step.fun.__name__ == name:
                 return step
         raise Exception("Couldn't locate entry point")
-
-    @classmethod
-    def get_url(cls, jobserver, url, dest_fname):
-        with HttpRequest(jobserver, url) as src:
-            with open(dest_fname, "wb") as dest:
-                shutil.copyfileobj(src, dest)
 
     @classmethod
     def create_env(cls, parameters, build_uuid, build_name):

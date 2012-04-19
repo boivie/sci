@@ -1,7 +1,7 @@
 import sys
 sys.path.append("../..")
-from flask import Blueprint, render_template, url_for, request, redirect, abort
-from sci.http_client import HttpClient, HttpError
+from flask import Blueprint, render_template, url_for
+from sci.http_client import HttpClient
 
 app = Blueprint('agents', __name__, template_folder='templates')
 
