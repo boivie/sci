@@ -27,7 +27,7 @@
 {% endif %}
        <h3>Log</h3>
        <ul>
-{% for entry in log[build.session_id[1:]] %}
+{% for entry in log[build.session_id] %}
 <li>{{entry}}</li>
 {% endfor %}
        </ul>

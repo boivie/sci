@@ -296,14 +296,14 @@ class GetPutJob:
         repo = get_repo(GIT_CONFIG)
         results['settings'], results['ref'] = get_job(repo, name)
         results['stats'] = db.hgetall(KEY_JOB % name)
-        results['stats']['latest_no'] = int(results['stats']['latest_no'])
+        results['stats']['latest_no'] = db.llen(KEY_JOB_BUILDS % name)
         return jsonify(**results)
 
 
 KEY_JOB = 'job:%s'
 KEY_BUILD = 'build:%s'
-KEY_BUILD_ID = 'build-hash:%s:%d'
 KEY_QUEUE = 'js:queue'
+KEY_JOB_BUILDS = 'job:builds:%s'
 
 
 def queue(db, item, front = False):
@@ -320,24 +320,23 @@ def new_build(db, job, job_ref, parameters = {},
     if not recipe_ref:
         recipe_ref = get_recipe_ref(config, job['recipe_name'])
 
-    # Get a build number
     now = get_ts()
-    number = db.hincrby(KEY_JOB % job['name'], 'latest_no', 1)
-    db.hset(KEY_JOB % job['name'], 'latest_ts', now)
 
+    # Insert the build (first without build number, as we don't know it)
     build_id = 'B%s' % random_sha1()
     build = dict(job_name = job['name'],
                  job_ref = job_ref,
                  recipe_name = job['recipe_name'],
                  recipe_ref = recipe_ref,
-                 number = number,
+                 number = 0,
                  state = state,
                  created = now,
                  session_id = 'S%s' % random_sha1(),
                  parameters = json.dumps(parameters))
+    db.hmset(KEY_BUILD % build_id, build)
 
-    db.hmset(KEY_BUILD % build_id[1:], build)
-    db.set(KEY_BUILD_ID % (job['name'], number), build_id)
+    number = db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
+    db.hset(KEY_BUILD % build_id, 'number', number)
     return build_id, build
 
 
@@ -372,17 +371,17 @@ class StartBuild:
 
 
 def get_build_info(db, build_id):
-        build = db.hgetall(KEY_BUILD % build_id)
-        if not build:
-            return None
-        build['number'] = int(build['number'])
-        build['parameters'] = json.loads(build['parameters'])
-        return build
+    build = db.hgetall(KEY_BUILD % build_id)
+    if not build:
+        return None
+    build['number'] = int(build['number'])
+    build['parameters'] = json.loads(build['parameters'])
+    return build
 
 
 class GetUpdateBuild:
     def GET(self, build_id):
-        build = get_build_info(conn(), build_id)
+        build = get_build_info(conn(), 'B' + build_id)
         if not build:
             abort(404, 'Invalid Build ID')
         return jsonify(build = build)
@@ -392,10 +391,9 @@ class GetBuild:
     def GET(self, job_name, number):
         db = conn()
         number = int(number)
-        build_id = db.get(KEY_BUILD_ID % (job_name, number))
+        build_id = db.lindex(KEY_JOB_BUILDS % job_name, number - 1)
         if build_id is None:
             abort(404, 'Not Found')
-        build_id = build_id[1:]
         build = get_build_info(db, build_id)
         if not build:
             abort(404, 'Invalid Build ID')
@@ -446,18 +444,21 @@ class ListJobs:
 
 
 KEY_BUILD_SESSIONS = 'build-sessions:%s'
-KEY_SLOG = 'build-slog:%s:%s'
+KEY_SLOG = 'slog:%s:%s'
 
 
 def DoJobDone(db, build_id, li):
+    build_id = 'B' + build_id
     db.hset(KEY_BUILD % build_id, 'state', STATE_DONE)
 
 
 def DoJobErrorThrown(db, build_id, li):
+    build_id = 'B' + build_id
     db.hset(KEY_BUILD % build_id, 'state', STATE_FAILED)
 
 
 def DoJobBegun(db, build_id, li):
+    build_id = 'B' + build_id
     db.hset(KEY_BUILD % build_id, 'state', STATE_RUNNING)
 
 
@@ -468,6 +469,8 @@ SLOG_HANDLERS = {JobBegun.type: DoJobBegun,
 
 class AddLog:
     def POST(self, build_id, session_id):
+        build_id = 'B' + build_id
+        session_id = 'S' + session_id
         # Verify that the build id exists.
         db = conn()
         if not db.exists(KEY_BUILD % build_id):
