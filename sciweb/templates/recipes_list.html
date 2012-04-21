@@ -3,12 +3,14 @@
 {% block lead %}Recipes are building instructions that are used by jobs to create builds.{% endblock %}
 {% set active_page = "recipes" %}
 {% block content %}
-    <ul class="unstyled">
+<table class="table table-striped">
+  <tbody>
 {% for recipe in recipes %}
-      <li class="lrow">
-	<p class="ltitle"><a href="{{recipe.url}}">{{recipe.id}}</a></p>
-	<div>{{recipe.description}}</div>
-      </li>
+    <tr>
+      <td><a href="{{url_for('.show', id = recipe.id)}}">{{recipe.id}}</a></td>
+      <td>{{recipe.description|default("none given")}}</td>
+    </tr>
 {% endfor %}
-    </ul>
+  </tbody>
+</table>
 {% endblock %}

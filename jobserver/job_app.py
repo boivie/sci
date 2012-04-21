@@ -94,7 +94,6 @@ class GetPutJob:
 
 class ListJobs:
     def GET(self):
-        db = conn()
         repo = config()
         jobs = []
         for name in repo.refs.keys():
@@ -102,11 +101,8 @@ class ListJobs:
                 continue
             job_name = name[16:]
             job, job_ref = get_job(repo, job_name, repo.refs[name])
-
             info = dict(id = job_name,
                         recipe = job['recipe'],
-                        latest_no = db.llen(KEY_JOB_BUILDS % job_name))
-            if 'recipe_ref' in job:
-                info['recipe_ref'] = job['recipe_ref']
+                        description = job.get('description', ''))
             jobs.append(info)
         return jsonify(jobs = jobs)

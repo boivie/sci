@@ -1,6 +1,6 @@
 import sys
 sys.path.append("../..")
-from flask import Blueprint, render_template, url_for
+from flask import Blueprint, render_template
 from sci.http_client import HttpClient
 
 app = Blueprint('agents', __name__, template_folder='templates')
@@ -24,7 +24,6 @@ def show(id):
 def index():
     agents = ahq().call('/agent/agents')['agents']
     for agent in agents:
-        agent['url'] = url_for('.show', id = agent['id'])
         if not agent['nick']:
             del agent['nick']
 

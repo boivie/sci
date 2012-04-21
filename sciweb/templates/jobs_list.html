@@ -1,14 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Builds{% endblock %}
-{% block lead %}Builds and jobs.{% endblock %}
+{% block title %}Jobs & Builds{% endblock %}
+{% block lead %}Click on a job to see the builds.{% endblock %}
 {% set active_page = "builds" %}
 {% block content %}
-      <ul class="unstyled">
+<table class="table table-striped">
+  <tbody>
 {% for job in jobs %}
-        <li class="lrow">
-	  <p class="ltitle"><a href="{{url_for('.show_home', id=job.id)}}">{{job.id}}</a></p>
-	  <div>Latest build (<a href="{{url_for('.show_build', id=job.id, build_no=job.latest_no)}}">{{job.id}}-{{job.latest_no}}</a>)</div>
-	</li>
+    <tr>
+      <td><a href="{{url_for('.show_home', id = job.id)}}">{{job.id}}</a></td>
+      <td>{{job.description|default("none given")}}</td>
+    </tr>
 {% endfor %}
-      </ul>
+  </tbody>
+</table>
 {% endblock %}

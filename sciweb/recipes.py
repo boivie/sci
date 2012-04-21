@@ -53,8 +53,6 @@ def show(id):
 @app.route('/', methods = ['GET'])
 def index():
     recipes = c().call('/recipe')['recipes']
-    for recipe in recipes:
-        recipe['url'] = url_for('.show', id = recipe['id'])
 
     return render_template('recipes_list.html',
                            recipes = recipes)

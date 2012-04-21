@@ -182,9 +182,14 @@ def show_build(id, build_no, active_tab = None, job = None):
                            log = log)
 
 
+@app.route('/new', methods = ['GET'])
+def show_new():
+    return render_template('jobs_list.html')
+
+
 @app.route('/', methods = ['GET'])
 def index():
     jobs = js().call('/job')['jobs']
-
+    jobs.sort(lambda a, b: cmp(a['id'], b['id']))
     return render_template('jobs_list.html',
                            jobs = jobs)
