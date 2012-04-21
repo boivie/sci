@@ -206,3 +206,18 @@ filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
 .link-black {
     color: #000000;
 }
+
+.subhead {
+  padding-bottom: 0;
+  margin-bottom: 15px;
+}
+.subhead h1 {
+  font-size: 54px;
+  padding-bottom: 15px;
+}
+
+.alert-grey {
+    background-color: whiteSmoke;
+    border-color: rgba(0, 0, 0, 0.05);
+    color: #000000;
+}

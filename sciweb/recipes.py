@@ -26,13 +26,18 @@ def edit_post(id):
 
 
 @app.route('/edit/<id>', methods = ['GET'])
-def edit(id):
+def show_edit(id):
     recipe = c().call('/recipe/%s.json' % id)
 
     return render_template('recipes_edit.html',
                            recipe = recipe,
-                           recipe_id = id,
-                           show_url = url_for('.show', id = id))
+                           id = id,
+                           active_tab = 'edit')
+
+
+@app.route('/history/<id>', methods = ['GET'])
+def show_history(id):
+    pass
 
 
 @app.route('/show/<id>', methods = ['GET'])
@@ -41,8 +46,8 @@ def show(id):
 
     return render_template('recipes_show.html',
                            recipe = recipe,
-                           recipe_id = id,
-                           edit_url = url_for('.edit', id = id))
+                           active_tab = 'show',
+                           id = id)
 
 
 @app.route('/', methods = ['GET'])

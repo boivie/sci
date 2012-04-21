@@ -1,39 +1,7 @@
 {% extends "job_base.html" %}
+{% block pagetitle %}Start Job{% endblock %}
+{% block tabbar %}{% endblock %}
 {% block subcontents %}
-{% raw %}
-   <script id="parameter" type="text/x-jquery-tmpl"> 
-       <div id="param_${name}" class="control-group">
-         <label class="control-label" for="param_${name}"> ${name}</label>
-         <div class="controls">
-	   <input type="text" class="input-xlarge" name="param_${name}" value="${def}">
-         <p class="help-block">${description}</p>
-         </div>
-       </div>
-   </script>
-
-   <script id="inactive-field" type="text/x-jquery-tmpl">
-     <li id="fld_${name}" class="fieldrow">
-       <a class="btn" href="javascript:make_active('${name}')">
-	 <i class="icon-cog"></i> ${name}
-       </a>
-     </li>
-   </script>
-   <script id="active-field" type="text/x-jquery-tmpl">
-     <li id="fld_${name}" class="fieldrow">
-       <a class="btn btn-info active" href="javascript:make_active('${name}')">
-	 <i class="icon-cog icon-white"></i> ${name}
-       </a>
-     </li>
-   </script>
-   <script id="required-field" type="text/x-jquery-tmpl">
-     <li id="fld_${name}" class="fieldrow">
-       <a class="btn btn-info disabled">
-	 <i class="icon-lock icon-white"></i> ${name}
-       </a>
-     </li>
-   </script>
-
-{% endraw %}
    <div class="row">
      <div class="span7">
        <p class="lead">Enter an optional description and hit "Start Build". If you want to make your build more customized, override some build parameters to the left.</p>

@@ -1,6 +1,6 @@
 {% import 'macros.html' as macros %}
 {% extends "job_base.html" %}
-{% block title %}{{build.number}} - {{build.build_id}}{% endblock %}
+{% block pagetitle %}{{name}} #{{build.number}} - {{build.build_id}}{% endblock %}
 {% block subcontents %}
     <div class="row">
       <div class="span12">

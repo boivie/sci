@@ -1,29 +1,50 @@
 {% extends "base.html" %}
-{% block title %}{{name}} - Job{% endblock %}
+{% block pagetitle %}{{name}}{% endblock %}
+{% block title %}{{name}}{% endblock %}
+{% block lead %}{{job.settings.description|default("No description has been entered for this job.")}}{% endblock %}
 {% set active_page = "builds" %}
-
+{% if not tab_bar %}
 {% set tab_bar = [
-    (url_for('.show_home', id=id), 'home', 'icon-home', 'Overview'),
-    (url_for('.show_latest', id=id), 'latest', 'icon-repeat', 'Latest Build'),
-    (url_for('.show_success', id=id), 'success', 'icon-ok', 'Last Success'),
-    (url_for('.show_history', id=id), 'history', 'icon-time', 'Build History'),
+    (url_for('.show_home', id=id), 'home', 'icon-home', 'Overview', False),
+    (url_for('.show_latest', id=id), 'latest', 'icon-repeat', 'Latest Build', False),
+    (url_for('.show_success', id=id), 'success', 'icon-ok', 'Last Success', False),
+    (url_for('.show_history', id=id), 'history', 'icon-time', 'Build History', False),
+    (url_for('.show_edit', id=id), 'edit', 'icon-edit', 'Edit', True),
 ] -%}
-
+{% endif %}
 {% block content %}
-    <div class="row">
-      <div class="span12">
-	<a style="float: right" class="btn" href="{{edit_url}}"><i class="icon-edit"></i> Edit</a>
-	<h1><a class="link-black" href="{{url_for('.show_home', id=id)}}">{{name}}</a></h1>
-      </div>
-    </div>
-    <div style="margin-top: 20px" class="row">
-      <div class="span12">
-	<ul class="nav nav-tabs">
-{%- for href, id, icon, caption in tab_bar %}
-	  <li{% if id == active_tab %} class="active"{% endif %}><a href="{{href}}"><i class="{{icon}}"></i> {{caption}}</a></li>
-{%- endfor %}
-	</ul>
-      </div>
-    </div>
+{% raw %}
+   <script id="parameter" type="text/x-jquery-tmpl"> 
+       <div id="param_${name}" class="control-group">
+         <label class="control-label" for="param_${name}"> ${name}</label>
+         <div class="controls">
+	   <input type="text" class="input-xlarge" name="param_${name}" value="${def}">
+         <p class="help-block">${description}</p>
+         </div>
+       </div>
+   </script>
+
+   <script id="inactive-field" type="text/x-jquery-tmpl">
+     <li id="fld_${name}" class="fieldrow">
+       <a class="btn" href="javascript:make_active('${name}')">
+	 <i class="icon-cog"></i> ${name}
+       </a>
+     </li>
+   </script>
+   <script id="active-field" type="text/x-jquery-tmpl">
+     <li id="fld_${name}" class="fieldrow">
+       <a class="btn btn-info active" href="javascript:make_active('${name}')">
+	 <i class="icon-cog icon-white"></i> ${name}
+       </a>
+     </li>
+   </script>
+   <script id="required-field" type="text/x-jquery-tmpl">
+     <li id="fld_${name}" class="fieldrow">
+       <a class="btn btn-info disabled">
+	 <i class="icon-lock icon-white"></i> ${name}
+       </a>
+     </li>
+   </script>
+{% endraw %}
 {% block subcontents %}{% endblock %}
 {% endblock %}

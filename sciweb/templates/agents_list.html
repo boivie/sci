@@ -1,9 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Agents{% endblock %}
+{% block lead %}Agents are the computers executing build actions{% endblock %}
 {% set active_page = "agents" %}
 {% block content %}
-    <h1>Agents</h1>
-    <p class="lead">Agents are the computers executing build actions</p>
     <h3>Available agents</h3>
     <ul class="unstyled">
 {% for agent in agents if agent.state == 'available' %}

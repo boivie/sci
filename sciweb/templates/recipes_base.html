@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{id}}{% endblock %}
+{% set tab_bar = [
+    (url_for('.show', id=id), 'show', 'icon-home', 'View', False),
+    (url_for('.show_history', id=id), 'history', 'icon-time', 'History', False),
+    (url_for('.show_edit', id=id), 'edit', 'icon-edit', 'Edit', True),
+] -%}
+{% set active_page = "recipes" %}
+{% block content %}
+{% endblock %}

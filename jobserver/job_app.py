@@ -1,4 +1,5 @@
 import json
+import types
 
 import web
 import yaml
@@ -24,6 +25,8 @@ class GetPutJob:
         repo = config()
         input = json.loads(web.data())
         job = input['contents']
+        if type(job) is not types.DictType:
+            job = yaml.safe_load(job)
         job['name'] = name
 
         while True:
@@ -49,6 +52,7 @@ class GetPutJob:
                     abort(412, str(e))
 
     def GET(self, query):
+        input = web.input(show = 'json')
         db = conn()
         results = {}
         parts = query.split(',')
@@ -57,7 +61,11 @@ class GetPutJob:
         if '@' in name:
             name, ref = name.split('@')
         repo = config()
-        results['settings'], results['ref'] = get_job(repo, name, ref)
+        if input['show'] == 'raw':
+            results['settings'], results['ref'] = get_job(repo, name, ref, True)
+            return jsonify(**results)
+        else:
+            results['settings'], results['ref'] = get_job(repo, name, ref)
         success_bid = db.hget(KEY_JOB % name, 'success')
         if success_bid:
             success_no = db.hget(KEY_BUILD % success_bid, 'number')
@@ -67,7 +75,7 @@ class GetPutJob:
         history = []
         build_keys = ('number', 'created', 'description', 'build_id')
         session_keys = ('state', 'result')
-        for build_id in db.lrange(KEY_JOB_BUILDS % name, -10, -1):
+        for build_id in db.lrange(KEY_JOB_BUILDS % name, -30, -1):
             number, created, description, bid = \
                 db.hmget(KEY_BUILD % build_id, build_keys)
             session_id = build_id + '-0'

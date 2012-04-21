@@ -1,0 +1,9 @@
+{% extends "job_base.html" %}
+{% set tab_bar = [
+(url_for('.show_home', id=id), 'home', 'icon-home', 'Overview', False),
+    (url_for('.show_edit', id=id), 'edit', 'icon-edit', 'Simple Edit', False),
+    (url_for('.show_raw_edit', id=id), 'raw_edit', 'icon-pencil', 'Raw Edit', False),
+    (url_for('.show_edit', id=id), 'history', 'icon-time', 'Job History', False),
+] -%}
+{% block lead %}Edit as you like. We keep history of everything.{% endblock %}
+{% block pagetitle %}Edit {{name}}{% endblock %}

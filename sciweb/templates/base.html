@@ -9,7 +9,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>{% block title %}{% endblock %}</title>
+    <title>{% block pagetitle %}{{ self.title() }}{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="">
     <meta name="author" content="">
@@ -65,9 +65,26 @@
       </div>
     </div>
     <div class="container">
-{% block subnav %}{% endblock %}
-      {% block content %}{% endblock %}
+{% block header %}
+      <div class="jumbotron subhead">
+	<h1>{{ self.title() }}</h1>
+	<p class="lead">{% block lead %}{% endblock %}</p>
+      </div>
+{% endblock %}
+{% block subnav %}
+{% if tab_bar %}
+      <div style="margin-bottom: 20px" class="subnav">
+	<ul class="nav nav-pills">
+{%- for href, id, icon, caption, right in tab_bar %}
+          <li {% if right %}style="float: right" {% endif %}{% if id == active_tab %} class="active"{% endif %}><a href="{{href}}"><i class="{{icon}}"></i> {{caption}}</a></li>
+{%- endfor %}
+	</ul>
+      </div>
+{% endif %}
+{% endblock %}
+{% block content %}{% endblock %}
     </div>
     <script src="/static/google-code-prettify/prettify.js"></script>
+    <script src="/static/js/sci.js"></script>
   </body>
 </html>

@@ -1,7 +1,7 @@
 import sys
 sys.path.append("../..")
-from flask import Blueprint, render_template, url_for, request, redirect
-from sci.http_client import HttpClient
+from flask import Blueprint, render_template, url_for, request, redirect, abort
+from sci.http_client import HttpClient, HttpError
 
 app = Blueprint('builds', __name__, template_folder='templates')
 
@@ -10,9 +10,55 @@ def js():
     return HttpClient('http://127.0.0.1:6697')
 
 
-@app.route('/<id>/edit', methods = ['GET'])
+@app.route('/<id>/edit', methods = ['POST'])
 def edit(id):
-    return "Edit"
+    try:
+        js().call('/job/%s' % id,
+                  input = dict(contents = request.form['contents'],
+                               old = request.form['ref']))
+    except HttpError as e:
+        if e.code != 412:
+            abort(500)
+        else:
+            pass
+            # TODO
+    return redirect(url_for('.show_home', id = id))
+
+
+@app.route('/<id>/raw_edit', methods = ['GET'])
+def show_raw_edit(id):
+    info = js().call('/job/%s' % id, show = 'raw')
+    return render_template('job_edit_raw.html',
+                           id = id,
+                           name = id,
+                           active_tab = 'raw_edit',
+                           job = info)
+
+
+@app.route('/<id>/edit', methods = ['GET'])
+def show_edit(id):
+    recipes = js().call('/recipe')['recipes']
+
+    info = js().call('/job/%s' % id)
+    params = info['parameters']
+    print(info)
+    for k, v in params.iteritems():
+        # 'default' doesn't play well in jquery.tmpl - why?
+        if 'default' in v:
+            v['def'] = v['default']
+            del v['default']
+
+    params = params.values()
+    params.sort(lambda a, b: cmp(a['name'], b['name']))
+
+    return render_template('job_edit.html',
+                           id = id,
+                           name = id,
+                           active_tab = 'edit',
+                           params = params,
+                           post_url = url_for('.edit', id = id),
+                           job = info,
+                           recipes = recipes)
 
 
 @app.route('/<id>/start', methods = ['POST'])
@@ -105,18 +151,20 @@ def simplify_log(log):
 
 @app.route('/<id>/latest', methods = ['GET'])
 def show_latest(id):
-    info = js().call('/job/%s' % id)
-    return show_build(id, info.get('latest_no', 0), 'latest')
+    job = js().call('/job/%s' % id)
+    return show_build(id, job.get('latest_no', 0), 'latest', job)
 
 
 @app.route('/<id>/success', methods = ['GET'])
 def show_success(id):
-    info = js().call('/job/%s' % id)
-    return show_build(id, info.get('success_no', 0), 'success')
+    job = js().call('/job/%s' % id)
+    return show_build(id, job.get('success_no', 0), 'success', job)
 
 
 @app.route('/<id>/<int:build_no>', methods = ['GET'])
-def show_build(id, build_no, active_tab = None):
+def show_build(id, build_no, active_tab = None, job = None):
+    if not job:
+        job = js().call('/job/%s' % id)
     info = js().call('/build/%s,%d' % (id, build_no))
 
     log = info['log']
@@ -130,6 +178,7 @@ def show_build(id, build_no, active_tab = None):
                            active_tab = active_tab,
                            build = info['build'],
                            sessions = info['sessions'],
+                           job = job,
                            log = log)
 
 

@@ -5,14 +5,16 @@ from jobserver.recipe import get_recipe_metadata
 KEY_JOB = 'job:%s'
 
 
-def get_job(repo, name, ref = None):
+def get_job(repo, name, ref = None, raw = False):
     if ref:
         commit = repo.get_object(ref)
     else:
         commit = repo.get_object(repo.refs['refs/heads/jobs/%s' % name])
     tree = repo.get_object(commit.tree)
     mode, sha = tree['job.yaml']
-    obj = yaml.safe_load(repo.get_object(sha).data)
+    obj = repo.get_object(sha).data
+    if not raw:
+        obj = yaml.safe_load(obj)
 
     return obj, commit.id
 

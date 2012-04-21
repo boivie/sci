@@ -1,0 +1,112 @@
+{% extends "job_edit_base.html" %}
+{% block subcontents %}
+<form class="form-horizontal" method="POST" action="{{post_url}}">
+  <div class="row">
+    <div class="span12">
+	<legend>General</legend>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span7">
+      <fieldset>
+	<div class="control-group">
+          <label class="control-label" for="recipe">Recipe</label>
+          <div class="controls">
+	    <select name="recipe" class="input-xlarge">
+{% for recipe in recipes %}
+              <option value="{{recipe.id}}"{% if recipe.id==job.settings.recipe%} selected="selected"{%endif%}>{{recipe.id}}</option>
+{% endfor %}
+            </select>
+            <p class="help-block">The recipe to follow</p>
+          </div>
+	</div>
+	<div class="control-group">
+          <label class="control-label" for="recipe_ref">Recipe Reference</label>
+          <div class="controls">
+	    <input type="text" class="input-xlarge" name="recipe_ref" value="{{job.settings.recipe_ref}}">
+            <p class="help-block">The recipe SHA1 if you want to lock it down</p>
+          </div>
+	</div>
+	<div class="control-group">
+          <label class="control-label" for="description">Description</label>
+          <div class="controls">
+	    <input type="text" class="input-xlarge" name="description" value="{{job.settings.description}}">
+            <p class="help-block">A short job description</p>
+          </div>
+	</div>
+      </fieldset>
+    </div>
+    <div class="span5">
+      <div class="alert alert-info">
+	<strong>What if I break something?</strong> 
+	<p>All old versions are kept in the 'Job History', so you should
+	  be fine.</p>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span12">
+	<legend>Parameters</legend>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span7">
+      &nbsp;
+      <fieldset>
+	<div id="all_params">
+	</div>
+      </fieldset>
+    </div>
+    <div class="span5">
+      <ul class="other-params" id="other_params">
+      </ul>
+      <div class="alert alert-info">
+	<strong>Parameters?</strong> 
+	<p>You can set any of the parameters that the recipe defines.</p>
+	<p>Parameters can also be modified when starting a
+	  build.</p>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span12">
+      <div class="form-actions">
+	<button type="submit" class="btn btn-primary btn-large">Save</button>
+	<a href="{{url_for('.show_home', id=id)}}" class="btn btn-large">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+
+   <script>
+{% autoescape false %}
+  var params = {{params|json}};
+{% endautoescape %}
+{% raw %}
+  for (idx in params) {
+     var param = params[idx];
+     $("#inactive-field").tmpl(param).appendTo("#other_params");
+     param["active"] = false;
+  }
+
+function make_active(name) {
+  for (idx in params) {
+     var param = params[idx];
+     if (param['name'] == name) {
+       if (!param["active"]) {
+         var fld = $("#active-field").tmpl(param);
+         $("#fld_" + name).replaceWith(fld);
+         $("#parameter").tmpl(param).appendTo("#all_params");
+         param["active"] = true;
+       } else {
+         var fld = $("#inactive-field").tmpl(param);
+         $("#fld_" + name).replaceWith(fld);
+         $("#param_" + name).remove();
+         param["active"] = false;
+       }
+     }
+  }
+}
+{% endraw %}
+</script>
+{% endblock %}

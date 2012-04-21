@@ -1,0 +1,24 @@
+{% extends "job_edit_base.html" %}
+{% block subcontents %}
+<form  method="POST" action="{{url_for('.edit', id=id)}}">
+  <input type="hidden" name="ref" value="{{job.ref}}"/>
+  <div class="row">
+    <div class="span12">
+      <fieldset>
+        <div class="control-group">
+          <div class="controls">
+	    <textarea name="contents" class="editbox" id="textarea" cols="80" rows="25" wrap="off">{{job.settings}}</textarea>
+          </div>
+        </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span12">
+      <div class="form-actions">
+	<button type="submit" class="btn btn-primary btn-large">Save</button>
+	<a href="{{url_for('.show_home', id=id)}}" class="btn btn-large">Cancel</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
