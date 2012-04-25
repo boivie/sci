@@ -8,64 +8,32 @@
     :copyright: (c) 2011 by Victor Boivie
     :license: Apache License 2.0
 """
-import logging
-from optparse import OptionParser
-import os
+import logging, os
 
-from dulwich.repo import Repo
-import web
+from flask import Flask, jsonify
 
-from jobserver.gitdb import get_gits
-from jobserver.build_app import build_app
-from jobserver.slog_app import slog_app
-from jobserver.job_app import job_app
-from jobserver.recipe_app import recipe_app
-from jobserver.agent_app import agent_app
-from jobserver.webutils import jsonify
+from jobserver.build_app import app as build_app
+from jobserver.slog_app import app as slog_app
+from jobserver.job_app import app as job_app
+from jobserver.recipe_app import app as recipe_app
+from jobserver.agent_app import app as agent_app
 
+os.environ['_sci_kind'] = 'js'
+app = Flask(__name__)
+app.register_blueprint(build_app, url_prefix='/build')
+app.register_blueprint(slog_app, url_prefix='/slog')
+app.register_blueprint(job_app, url_prefix='/job')
+app.register_blueprint(recipe_app, url_prefix='/recipe')
+app.register_blueprint(agent_app, url_prefix='/agent')
+app.config.from_envvar('SCI_SETTINGS')
 
-urls = (
-    '/build',  build_app,
-    '/slog',   slog_app,
-    '/job',    job_app,
-    '/recipe', recipe_app,
-    '/agent',  agent_app,
-    '/info',   'GetInfo',
-)
-
-app = web.application(urls, globals())
+if app.debug:
+    logging.basicConfig(level=logging.DEBUG)
 
 
-class GetInfo:
-    def GET(self):
-        return jsonify(ss_url = web.config._ss_url)
-
+@app.route("/info", methods = ['GET'])
+def getinfo():
+    return jsonify(ss_url = app.config['SS_URL'])
 
 if __name__ == "__main__":
-    parser = OptionParser()
-    parser.add_option("-g", "--debug",
-                      action = "store_true", dest = "debug", default = False,
-                      help = "debug mode - will allow all requests")
-    parser.add_option("-p", "--port", dest = "port", default = 6697,
-                      help = "port to use")
-    parser.add_option("--path", dest = "path", default = ".",
-                      help = "path to use")
-    parser.add_option("--ss", dest = "ss_url",
-                      default = "http://localhost:6698",
-                      help = "Storage server URL")
-
-    (opts, args) = parser.parse_args()
-
-    if opts.debug:
-        logging.basicConfig(level=logging.DEBUG)
-
-    web.config._path = opts.path
-    web.config._ss_url = opts.ss_url
-
-    for git_path in get_gits():
-        if not os.path.exists(git_path):
-            print("Creating initial repository: %s" % git_path)
-            os.makedirs(git_path)
-            Repo.init_bare(git_path)
-
-    web.httpserver.runsimple(app.wsgifunc(), ("0.0.0.0", int(opts.port)))
+    app.run(host='0.0.0.0', port=6697, debug = True, threaded = True)

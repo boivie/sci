@@ -1,16 +1,15 @@
-import web
+import json
+
+from flask import Blueprint, jsonify, request
 
 from jobserver.db import conn
 from jobserver.slog import add_slog
 
-urls = (
-    '/B([0-9a-f]{40})-([0-9]+)',  'AddLog',
-)
-
-slog_app = web.application(urls, locals())
+app = Blueprint('slog', __name__)
 
 
-class AddLog:
-    def POST(self, build_id, session_no):
-        add_slog(conn(), 'B%s-%s' % (build_id, session_no), web.data())
-        return web.webapi.created()
+@app.route('/<build_id>-<session_no>', methods=['POST'])
+def add_log(build_id, session_no):
+    data = json.dumps(request.json) if request.json else request.data
+    add_slog(conn(), '%s-%s' % (build_id, session_no), data)
+    return jsonify()

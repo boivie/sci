@@ -7,7 +7,7 @@ app = Blueprint('recipes', __name__, template_folder='templates')
 
 
 def c():
-    return HttpClient('http://127.0.0.1:6697')
+    return HttpClient('http://localhost:6697')
 
 
 @app.route('/edit/<id>', methods = ['POST'])
@@ -52,7 +52,7 @@ def show(id):
 
 @app.route('/', methods = ['GET'])
 def index():
-    recipes = c().call('/recipe')['recipes']
+    recipes = c().call('/recipe/')['recipes']
 
     return render_template('recipes_list.html',
                            recipes = recipes)

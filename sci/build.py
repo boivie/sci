@@ -98,7 +98,7 @@ class AsyncJob(object):
                              'env': self.job.env.serialize()}}
         self.ts_start = time.time()
         js = HttpClient(self.job.jobserver)
-        res = js.call('/agent/dispatch', input = json.dumps(data))
+        res = js.call('/agent/dispatch', input = data)
         self.session_id = res['session_id']
         self.state = STATE_RUNNING
 
@@ -276,20 +276,20 @@ class Build(object):
         # Save the recipe at the job server
         contents = open(sys.modules[self._import_name].__file__, "rb").read()
         result = client.call("/recipe/private.json",
-                             input = json.dumps({"contents": contents}))
+                             input = {"contents": contents})
         recipe_id = result['ref']
 
         # Update the job to use this recipe and lock it to a ref
         contents = {'recipe': 'private',
                     'recipe_ref': recipe_id}
         result = client.call("/job/private",
-                             input = json.dumps({"contents": contents}))
+                             input = {"contents": contents})
         job_ref = result['ref']
 
         # Create a build
         build_info = client.call('/build/create/private.json',
-                                 input = json.dumps({'job_ref': job_ref,
-                                                     'parameters': params}))
+                                 input = {'job_ref': job_ref,
+                                          'parameters': params})
         session = Session.create(build_info['session_id'])
 
         # Normally, the agents indicate when a session is started

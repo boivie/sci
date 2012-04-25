@@ -7,7 +7,7 @@ app = Blueprint('agents', __name__, template_folder='templates')
 
 
 def ahq():
-    return HttpClient('http://127.0.0.1:6697')
+    return HttpClient('http://localhost:6697')
 
 
 @app.route('/edit/<id>', methods = ['GET'])

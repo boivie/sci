@@ -7,7 +7,7 @@ app = Blueprint('builds', __name__, template_folder='templates')
 
 
 def js():
-    return HttpClient('http://127.0.0.1:6697')
+    return HttpClient('http://localhost:6697')
 
 
 @app.route('/<id>/edit', methods = ['POST'])
@@ -189,7 +189,7 @@ def show_new():
 
 @app.route('/', methods = ['GET'])
 def index():
-    jobs = js().call('/job')['jobs']
+    jobs = js().call('/job/')['jobs']
     jobs.sort(lambda a, b: cmp(a['id'], b['id']))
     return render_template('jobs_list.html',
                            jobs = jobs)

@@ -1,8 +1,8 @@
 import os
 
+from flask import current_app
 from dulwich.repo import Repo
 from dulwich.objects import Blob, Tree, Commit, parse_timezone
-import web
 
 from jobserver.utils import get_ts
 
@@ -19,11 +19,7 @@ class NoChangesException(CommitException):
 
 
 def config():
-    return Repo(os.path.join(web.config._path, GIT_CONFIG))
-
-
-def get_gits():
-    return [os.path.join(web.config._path, GIT_CONFIG)]
+    return Repo(os.path.join(current_app.config['JS_PATH'], GIT_CONFIG))
 
 
 def update_head(repo, name, old_sha1, new_sha1):

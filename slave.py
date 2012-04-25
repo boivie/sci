@@ -87,10 +87,10 @@ def send_available(session_id = None, result = None, output = None,
 
     client = HttpClient(web.config._job_server)
     client.call("/agent/available/%s" % web.config.node_id,
-                input = json.dumps({'session_id': session_id,
-                                    'result': result,
-                                    'output': output,
-                                    'log_file': log_file}))
+                input = {'session_id': session_id,
+                         'result': result,
+                         'output': output,
+                         'log_file': log_file})
 
 
 def send_busy(session_id):
@@ -99,7 +99,7 @@ def send_busy(session_id):
 
     client = HttpClient(web.config._job_server)
     client.call("/agent/busy/%s" % web.config.node_id,
-                input = json.dumps({'session_id': session_id}))
+                input = {'session_id': session_id})
 
 
 def send_ping():
@@ -263,10 +263,10 @@ if __name__ == "__main__":
     client = HttpClient(web.config._job_server)
     hostname = "%s-%d" % (os.uname()[1], web.config.port)
     ret = client.call("/agent/register",
-                      input = json.dumps({"id": web.config.node_id,
-                                          'nick': hostname,
-                                          "port": web.config.port,
-                                          "labels": ["macos"]}))
+                      input = {"id": web.config.node_id,
+                               'nick': hostname,
+                               "port": web.config.port,
+                               "labels": ["macos"]})
     print("%s: Running from %s, listening to %d" % (web.config.node_id, web.config._path, web.config.port))
 
     status = StatusThread()
