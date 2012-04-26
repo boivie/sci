@@ -16,10 +16,11 @@ also expect that you have run ''. ENV/bin/activate'' first. They should be run
 in a terminal window of its own (or a GNU screen window).
 
 $ redis-server redis.conf
-$ ./ss.py
-$ ./jobserver.py
+$ SCI_SETTINGS=js_config.py ./ss.py
+$ SCI_SETTINGS=js_config.py ./jobserver.py
 $ ./backend.py
 $ ./start_slaves.sh 6
+$ ./sciweb.py
 
 Running the sample
 ------------------
@@ -37,13 +38,6 @@ us now run the sample:
 
 $ cd samples
 $ ./build-android.py BRANCH=donut-dev
-
-Running the Web Frontend
-------------------------
-
-You can also start a web frontend that allows you to manage jobs, builds and more.
-
-$ ./sciweb.py
 
 License
 =======
