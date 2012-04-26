@@ -22,7 +22,8 @@ if app.debug:
 
 
 def get_spath(build_id):
-    return os.path.join(app.config['SS_PATH'], 'ss-files', build_id)
+    return os.path.join(app.config['SS_PATH'], 'ss-files',
+                        build_id[1:3], build_id[3:5], build_id[5:])
 
 
 def get_fpath(build_id, filename):
