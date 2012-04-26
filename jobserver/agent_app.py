@@ -13,9 +13,40 @@ from jobserver.job import get_job, merge_job_parameters
 from jobserver.queue import queue, DispatchSession, AgentAvailable
 from jobserver.recipe import get_recipe_contents
 from jobserver.slog import add_slog
-from sci.slog import SessionStarted, SessionDone, RunAsync
 
 app = Blueprint('agents', __name__)
+
+
+class LogItem(object):
+    def __init__(self):
+        self.params = {}
+
+    def serialize(self):
+        d = dict(type = self.type)
+        if self.params:
+            d['params'] = self.params
+        return json.dumps(d)
+
+
+class SessionStarted(LogItem):
+    type = 'session-start'
+
+
+class SessionDone(LogItem):
+    type = 'session-done'
+
+    def __init__(self, result):
+        self.params = dict(result = result)
+
+
+class RunAsync(LogItem):
+    type = 'run-async'
+
+    def __init__(self, session_no, step_name, args, kwargs):
+        self.params = dict(session_no = int(session_no),
+                           step_name = step_name,
+                           args = args,
+                           kwargs = kwargs)
 
 
 @app.route('/register', methods=['POST'])

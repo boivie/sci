@@ -2,7 +2,6 @@ import json
 import time
 import types
 
-from sci.slog import JobDone, SetDescription, ArtifactAdded, SetBuildId
 from jobserver.build import KEY_BUILD, add_build_artifact
 from jobserver.job import KEY_JOB
 
@@ -30,10 +29,10 @@ def DoArtifactAdded(db, build_id, session_no, li):
     add_build_artifact(db, build_id, li['params'])
 
 
-SLOG_HANDLERS = {JobDone.type: DoJobDone,
-                 SetDescription.type: DoSetDescription,
-                 ArtifactAdded.type: DoArtifactAdded,
-                 SetBuildId.type: DoSetBuildId}
+SLOG_HANDLERS = {'job-done': DoJobDone,
+                 'set-description': DoSetDescription,
+                 'artifact-added': DoArtifactAdded,
+                 'set-build-id': DoSetBuildId}
 
 
 def add_slog(db, session_id, item):
