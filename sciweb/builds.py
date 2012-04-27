@@ -37,7 +37,7 @@ def show_raw_edit(id):
 
 @app.route('/<id>/edit', methods = ['GET'])
 def show_edit(id):
-    recipes = js().call('/recipe')['recipes']
+    recipes = js().call('/recipe/')['recipes']
 
     info = js().call('/job/%s' % id)
     params = info['parameters']
