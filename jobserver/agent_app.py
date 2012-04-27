@@ -57,7 +57,7 @@ def do_register():
     info = {"ip": request.remote_addr,
             'nick': request.json.get('nick', ''),
             "port": request.json["port"],
-            "state": jdb.AGENT_STATE_INACTIVE,
+            "state": jdb.AGENT_STATE_AVAIL,
             "seen": get_ts(),
             "labels": ",".join(request.json["labels"])}
 
@@ -67,6 +67,7 @@ def do_register():
     for label in request.json["labels"]:
         db.sadd(jdb.KEY_LABEL % label, agent_id)
 
+    queue(db, AgentAvailable(agent_id))
     return jsonify()
 
 
@@ -74,12 +75,10 @@ def do_register():
 def check_in_available(agent_id):
     db = jdb.conn()
 
-    # Do we have results from a previous dispatch?
-    session_id = request.json.get('session_id')
-    if session_id:
-        set_session_done(db, session_id, request.json['result'],
-                         request.json['output'], request.json['log_file'])
-        add_slog(db, session_id, SessionDone(request.json['result']))
+    session_id = request.json['session_id']
+    set_session_done(db, session_id, request.json['result'],
+                     request.json['output'], request.json['log_file'])
+    add_slog(db, session_id, SessionDone(request.json['result']))
 
     db.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,
                                             seen = get_ts()))
