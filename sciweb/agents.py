@@ -1,5 +1,3 @@
-import sys
-sys.path.append("../..")
 from flask import Blueprint, render_template
 from sci.http_client import HttpClient
 
