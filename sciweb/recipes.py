@@ -1,11 +1,12 @@
 from flask import Blueprint, render_template, url_for, request, redirect, abort
+from flask import current_app
 from sci.http_client import HttpClient, HttpError
 
 app = Blueprint('recipes', __name__, template_folder='templates')
 
 
 def c():
-    return HttpClient('http://localhost:6697')
+    return HttpClient('http://' + current_app.config['JS_SERVER_NAME'])
 
 
 @app.route('/edit/<id>', methods = ['POST'])

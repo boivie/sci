@@ -1,11 +1,11 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, current_app
 from sci.http_client import HttpClient
 
 app = Blueprint('agents', __name__, template_folder='templates')
 
 
 def ahq():
-    return HttpClient('http://localhost:6697')
+    return HttpClient('http://' + current_app.config['JS_SERVER_NAME'])
 
 
 @app.route('/edit/<id>', methods = ['GET'])
