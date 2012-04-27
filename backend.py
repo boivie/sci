@@ -12,15 +12,7 @@ import jobserver.db as jdb
 
 JOBSERVER_URL = "none"
 STORAGESERVER_URL = "none"
-
-
-def dispatch_later(pipe, session_id):
-    """Starts multi, doesn't exec"""
-    pipe.multi()
-    ts = float(time.time() * 1000)
-    set_session_queued(pipe, session_id)
-    pipe.zadd(jdb.KEY_QUEUED_SESSIONS, ts, session_id)
-    return session_id
+SEEN_EXPIRY_TTL = 2 * 60
 
 
 def do_dispatch(db, agent_id, agent_info, session_id):
@@ -46,10 +38,9 @@ def allocate(pipe, agent_id, session_id):
         return None
 
     # verify the 'seen' so that it's not too old
-    #if info['seen'] + SEEN_EXPIRY_TTL < int(time.time()):
-    #    print("%s didn't check in - dropping" % agent_id)
-    #    pipe.hset(jdb.KEY_AGENT % agent_id, 'state', STATE_INACTIVE)
-    #    return None
+    if info['seen'] + SEEN_EXPIRY_TTL < int(time.time()):
+        pipe.hset(jdb.KEY_AGENT % agent_id, 'state', jdb.AGENT_STATE_INACTIVE)
+        return None
 
     pipe.hmset(jdb.KEY_AGENT % agent_id, {'state': jdb.AGENT_STATE_PENDING,
                                           'session': session_id})
@@ -61,7 +52,7 @@ def dispatch_be(session_id):
     session = get_session(db, session_id)
     lkeys = [jdb.KEY_LABEL % label for label in session['labels']]
     lkeys.append(jdb.KEY_AVAILABLE)
-
+    ts = float(time.time() * 1000)
     alloc_key = jdb.KEY_ALLOCATION % random_sha1()
 
     while True:
@@ -71,19 +62,22 @@ def dispatch_be(session_id):
                 pipe.sinterstore(alloc_key, lkeys)
                 agent_id = pipe.spop(alloc_key)
                 if not agent_id:
-                    logging.debug("No agent available - queuing")
-                    dispatch_later(pipe, session_id)
+                    pipe.multi()
+                    set_session_queued(pipe, session_id)
+                    pipe.zadd(jdb.KEY_QUEUED_SESSIONS, ts, session_id)
                     pipe.delete(alloc_key)
                     pipe.execute()
+                    logging.debug("No agent available - queuing")
                 else:
-                    logging.debug("Dispatching to %s" % agent_id)
                     agent_info = allocate(pipe, agent_id, session_id)
                     pipe.delete(alloc_key)
                     pipe.execute()
 
                     if not agent_info:
+                        logging.debug("Tried to allocate %s. Bummer" % agent_id)
                         continue
 
+                    logging.debug("Dispatching to %s" % agent_id)
                     do_dispatch(db, agent_id, agent_info, session_id)
                 return
             except redis.WatchError:

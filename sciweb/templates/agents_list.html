@@ -19,9 +19,8 @@
   <tbody>
 {% for agent in idle_agents %}
     <tr>
-      <td><a href="{{url_for('.show', id = agent.id)}}">{{agent.id|short_id}}</a></td>
-      <td>{{agent.nick}}</td>
-      <td>{{agent.seen|pretty_date}}</td>
+      <td><a style="font-family: monospace" href="{{url_for('.show', id = agent.id)}}">{{agent.id|short_id}}</a> - {{agent.nick}}</td>
+      <td>seen {{agent.seen|pretty_date}}</td>
     </tr>
 {% endfor %}
   </tbody>

@@ -27,5 +27,9 @@ def index():
         if not agent['nick']:
             del agent['nick']
 
+    active_agents = [a for a in agents if a['state'] != 'inactive']
+    idle_agents = [a for a in agents if a['state'] == 'inactive']
+
     return render_template('agents_list.html',
-                           agents = agents)
+                           agents = active_agents,
+                           idle_agents = idle_agents)
