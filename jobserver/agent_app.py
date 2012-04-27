@@ -61,13 +61,15 @@ def do_register():
             "seen": get_ts(),
             "labels": ",".join(request.json["labels"])}
 
-    db.hmset(jdb.KEY_AGENT % agent_id, info)
-    db.sadd(jdb.KEY_ALL, agent_id)
+    with db.pipeline() as pipe:
+        pipe.hmset(jdb.KEY_AGENT % agent_id, info)
+        pipe.sadd(jdb.KEY_ALL, agent_id)
 
-    for label in request.json["labels"]:
-        db.sadd(jdb.KEY_LABEL % label, agent_id)
+        for label in request.json["labels"]:
+            pipe.sadd(jdb.KEY_LABEL % label, agent_id)
 
-    queue(db, AgentAvailable(agent_id))
+        queue(pipe, AgentAvailable(agent_id))
+        pipe.execute()
     return jsonify()
 
 
@@ -76,15 +78,17 @@ def check_in_available(agent_id):
     db = jdb.conn()
 
     session_id = request.json['session_id']
-    set_session_done(db, session_id, request.json['result'],
-                     request.json['output'], request.json['log_file'])
-    add_slog(db, session_id, SessionDone(request.json['result']))
+    with db.pipeline() as pipe:
+        set_session_done(pipe, session_id, request.json['result'],
+                         request.json['output'], request.json['log_file'])
+        add_slog(pipe, session_id, SessionDone(request.json['result']))
 
-    db.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,
-                                            seen = get_ts()))
-    # To avoid race condition and slow computations, we let the backend
-    # assign a new job to this slave, or set it as available.
-    queue(db, AgentAvailable(agent_id))
+        pipe.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,
+                                                  seen = get_ts()))
+        # To avoid race condition and slow computations, we let the backend
+        # assign a new job to this slave, or set it as available.
+        queue(pipe, AgentAvailable(agent_id))
+        pipe.execute()
     return jsonify()
 
 
@@ -92,13 +96,14 @@ def check_in_available(agent_id):
 def check_in_busy(agent_id):
     db = jdb.conn()
 
-    session_id = request.json.get('id')
-    if session_id:
-        set_session_running(db, session_id)
-        add_slog(db, session_id, SessionStarted())
+    with db.pipeline() as pipe:
+        session_id = request.json['session_id']
+        set_session_running(pipe, session_id)
+        add_slog(pipe, session_id, SessionStarted())
 
-    db.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_BUSY,
-                                            seen = get_ts()))
+        pipe.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_BUSY,
+                                                  seen = get_ts()))
+        pipe.execute()
     return jsonify()
 
 
