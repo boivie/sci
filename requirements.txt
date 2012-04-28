@@ -1,6 +1,6 @@
 Flask==0.8
 PyYAML==3.10
-dulwich==0.8.1
-nose==1.1.2
-redis==2.4.10
-web.py==0.36
+dulwich==0.8.5
+pyres==1.1
+pystache==0.2.0
+redis==2.4.12
