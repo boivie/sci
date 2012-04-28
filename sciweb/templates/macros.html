@@ -30,6 +30,7 @@
 {% elif entry.type == 'session-done' %}
 {% elif entry.type == 'artifact-added' %}
 {% elif entry.type == 'set-build-id' %}
+{% elif entry.type == 'session-start' %}
 {% else %}
 {% call fl(entry) %}{{ entry }}{% endcall %}
 {% endif %}
