@@ -3,7 +3,7 @@ from flask import Blueprint, request, abort, jsonify
 from pyres import ResQ
 
 from jobserver.slog import KEY_SLOG
-from jobserver.db import conn
+from jobserver.db import conn, KEY_AGENT
 from jobserver.gitdb import config
 from jobserver.job import get_job
 from jobserver.build import new_build, get_build_info, set_session_running
@@ -87,12 +87,22 @@ def get_build2(job_name, number):
         args = ", ".join(ri.get('args', []))
         title = "%s(%s)" % (ri.get('step_name', 'main'), args)
         sessions.append({'num': i,
-                         'agent': s['agent'],
+                         'agent_id': s['agent'],
+                         'agent_nick': '',
                          'title': title,
                          'log_file': s['log_file'],
                          'parent': s['parent'],
                          'state': s['state'],
                          'result': s['result']})
+
+    # Fetch info about the agents (the nick name)
+    agents = set([s['agent_id'] for s in sessions])
+    for agent_id in agents:
+        nick = db.hget(KEY_AGENT % agent_id, 'nick')
+        for s in sessions:
+            if s['agent_id'] == agent_id:
+                s['agent_nick'] = nick
+
     return jsonify(build = build,
                    log = log,
                    sessions = sessions)

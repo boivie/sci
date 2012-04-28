@@ -52,7 +52,7 @@
 	 <h3>Build Sessions</h3>
 	 <ul>
 {% for session in sessions %}
-<li><strong>{{session.title}}</strong><br/>executed on <a href="{{url_for('agents.show', id = session.agent)}}">{{session.agent|short_id}}</a>
+<li><strong>{{session.title}}</strong><br/>executed on <a href="{{url_for('agents.show', id = session.agent_id)}}">{{session.agent_nick}}</a>
 {% if session.log_file %}
 (<a href="{{session.log_file}}">LOG</a>)</li>
 {% endif %}
