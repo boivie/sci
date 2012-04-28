@@ -1,5 +1,6 @@
 import json
 from flask import Blueprint, request, abort, jsonify
+from pyres import ResQ
 
 from jobserver.slog import KEY_SLOG
 from jobserver.db import conn
@@ -8,7 +9,7 @@ from jobserver.job import get_job
 from jobserver.build import new_build, get_build_info, set_session_running
 from jobserver.build import set_session_done, get_session
 from jobserver.build import KEY_JOB_BUILDS, set_session_queued
-from jobserver.queue import queue, DispatchSession
+from async.dispatch_session import DispatchSession
 
 app = Blueprint('build', __name__)
 
@@ -38,7 +39,8 @@ def do_start_build(job_name):
                       parameters = input.get('parameters', {}),
                       description = input.get('description', ''))
     set_session_queued(db, build['session_id'])
-    queue(db, DispatchSession(build['session_id']))
+    r = ResQ()
+    r.enqueue(DispatchSession, build['session_id'])
     return jsonify(**build)
 
 

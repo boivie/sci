@@ -2,6 +2,7 @@ import json
 import time
 
 from flask import Blueprint, request, abort, jsonify, current_app
+from pyres import ResQ
 
 from jobserver.utils import get_ts
 import jobserver.db as jdb
@@ -10,9 +11,10 @@ from jobserver.build import create_session, get_session, get_build_info
 from jobserver.build import set_session_done, set_session_running
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
 from jobserver.job import get_job, merge_job_parameters
-from jobserver.queue import queue, DispatchSession, AgentAvailable
 from jobserver.recipe import get_recipe_contents
 from jobserver.slog import add_slog
+from async.agent_available import AgentAvailable
+from async.dispatch_session import DispatchSession
 
 app = Blueprint('agents', __name__)
 
@@ -68,8 +70,8 @@ def do_register():
         for label in request.json["labels"]:
             pipe.sadd(jdb.KEY_LABEL % label, agent_id)
 
-        queue(pipe, AgentAvailable(agent_id))
-        pipe.execute()
+    r = ResQ()
+    r.enqueue(AgentAvailable, agent_id)
     return jsonify()
 
 
@@ -85,10 +87,10 @@ def check_in_available(agent_id):
 
         pipe.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,
                                                   seen = get_ts()))
-        # To avoid race condition and slow computations, we let the backend
-        # assign a new job to this slave, or set it as available.
-        queue(pipe, AgentAvailable(agent_id))
         pipe.execute()
+
+    r = ResQ()
+    r.enqueue(AgentAvailable, agent_id)
     return jsonify()
 
 
@@ -127,7 +129,8 @@ def dispatch():
     item = RunAsync(session_no, input['run_info']['step_name'],
                     input['run_info']['args'], input['run_info']['kwargs'])
     add_slog(db, input['parent'], item)
-    queue(db, DispatchSession(session_id))
+    r = ResQ()
+    r.enqueue(DispatchSession, session_id)
     return jsonify(session_id = session_id)
 
 
