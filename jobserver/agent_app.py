@@ -69,6 +69,7 @@ def do_register():
 
         for label in request.json["labels"]:
             pipe.sadd(jdb.KEY_LABEL % label, agent_id)
+        pipe.execute()
 
     r = ResQ()
     r.enqueue(AgentAvailable, agent_id)
