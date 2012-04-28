@@ -8,8 +8,11 @@ $(document).scroll(function(){
         $('.subnav').attr('data-top', offset.top);
     }
 
-    if ($('.subnav').attr('data-top') - $('.subnav').outerHeight() <= $(this).scrollTop())
+    if ($('.subnav').attr('data-top') - $('.subnav').outerHeight() <= $(this).scrollTop()) {
         $('.subnav').addClass('subnav-fixed');
-    else
+        $('#subnavfiller').show();
+    } else {
         $('.subnav').removeClass('subnav-fixed');
+        $('#subnavfiller').hide();
+    }
 });
