@@ -1,19 +1,13 @@
 from flask import Flask, redirect, url_for
-import json, logging, types, os
+import json, logging, types
 from recipes import app as recipes_app
 from agents import app as agents_app
 from builds import app as builds_app
 
-os.environ['_sci_kind'] = 'sw'
 app = Flask(__name__)
 app.register_blueprint(recipes_app, url_prefix='/recipes')
 app.register_blueprint(agents_app, url_prefix='/agents')
 app.register_blueprint(builds_app, url_prefix='/builds')
-app.config.from_envvar('SCI_SETTINGS')
-
-
-if app.debug:
-    logging.basicConfig(level=logging.DEBUG)
 
 
 @app.template_filter('json')
