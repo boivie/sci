@@ -16,11 +16,11 @@ also expect that you have run ''. ENV/bin/activate'' first. They should be run
 in a terminal window of its own (or a GNU screen window).
 
 $ redis-server redis.conf
-$ SCI_SETTINGS=js_config.py ./ss.py
-$ SCI_SETTINGS=js_config.py ./jobserver.py
+$ SCI_SETTINGS=../js_config.py ./ss.py
+$ SCI_SETTINGS=../js_config.py ./jobserver.py
+$ SCI_SETTINGS=../js_config.py ./sciweb.py
 $ ./backend.py
 $ ./start_slaves.sh 6
-$ ./sciweb.py
 
 Running the sample
 ------------------
