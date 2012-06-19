@@ -2,7 +2,7 @@
 import logging
 import os
 
-from ss import app
+from ss.app import app
 
 
 os.environ['_sci_kind'] = 'ss'
