@@ -2,7 +2,7 @@
 import logging
 import os
 
-from sciweb import app
+from sciweb.app import app
 
 
 os.environ['_sci_kind'] = 'sw'
