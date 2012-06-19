@@ -4,7 +4,7 @@
 {% block subcontents %}
     <div class="row">
       <div class="span12">
-	<h2>#{{build.number}} - {{build.build_id}}</h2>
+	<h2><a class="cb" href="{{url_for('.show_build', id=id, build_no=build.number)}}">#{{build.number}} - {{build.build_id}}</a></h2>
       </div>
     </div>
     <div class="row">

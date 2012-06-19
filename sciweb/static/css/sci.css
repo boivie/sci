@@ -221,3 +221,7 @@ filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
     border-color: rgba(0, 0, 0, 0.05);
     color: #000000;
 }
+
+.cb {
+    color: #000000;
+}
