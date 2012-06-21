@@ -21,6 +21,9 @@ AGENT_STATE_PENDING = "pending"
 # The agent has acknowledged the session and is now busy
 AGENT_STATE_BUSY = "busy"
 
+# Session history for a certain slave
+KEY_AGENT_HISTORY = 'agent:history:%s'
+
 
 def conn():
     r = redis.StrictRedis(connection_pool=pool)

@@ -18,6 +18,8 @@ from async.dispatch_session import DispatchSession
 
 app = Blueprint('agents', __name__)
 
+AGENT_HISTORY_LIMIT = 100
+
 
 class LogItem(object):
     def __init__(self):
@@ -49,6 +51,11 @@ class RunAsync(LogItem):
                            step_name = step_name,
                            args = args,
                            kwargs = kwargs)
+
+
+def add_to_history(pipe, agent_id, session_id):
+    pipe.lpush(jdb.KEY_AGENT_HISTORY % agent_id, session_id)
+    pipe.ltrim(jdb.KEY_AGENT_HISTORY % agent_id, 0, AGENT_HISTORY_LIMIT - 1)
 
 
 @app.route('/register', methods=['POST'])
@@ -103,6 +110,7 @@ def check_in_busy(agent_id):
         session_id = request.json['session_id']
         set_session_running(pipe, session_id)
         add_slog(pipe, session_id, SessionStarted())
+        add_to_history(pipe, agent_id, session_id)
 
         pipe.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_BUSY,
                                                   seen = get_ts()))
