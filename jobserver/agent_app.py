@@ -187,7 +187,7 @@ def get_session_info(session_id):
                    parameters = parameters)
 
 
-@app.route('/agents')
+@app.route('/list')
 def list_agents():
     db = jdb.conn()
     all = []

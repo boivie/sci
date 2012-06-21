@@ -20,7 +20,7 @@ def show(id):
 
 @app.route('/', methods = ['GET'])
 def index():
-    agents = ahq().call('/agent/agents')['agents']
+    agents = ahq().call('/agent/list')['agents']
     for agent in agents:
         if not agent['nick']:
             del agent['nick']
