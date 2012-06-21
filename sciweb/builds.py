@@ -70,7 +70,7 @@ def start(id):
     data = {'parameters': parameters,
             'description': request.form.get('description', '')}
     info = js().call('/build/start/%s' % id, input = data)
-    return redirect(url_for('.show_build', id = id, build_no = info['number']))
+    return redirect(url_for('.show_log', id = id, build_no = info['number']))
 
 
 @app.route('/<id>/start', methods = ['GET'])
@@ -89,7 +89,6 @@ def show_start(id):
     return render_template('job_start.html',
                            id = id,
                            name = id,
-                           active_tab = 'start',
                            params = params,
                            post_url = url_for('.start', id = id),
                            job = info)
@@ -114,7 +113,6 @@ def show_history(id):
     return render_template('job_history.html',
                            id = id,
                            job = info,
-                           active_tab = 'history',
                            name = id)
 
 
@@ -153,34 +151,44 @@ def simplify_log(log):
 @app.route('/<id>/latest', methods = ['GET'])
 def show_latest(id):
     job = js().call('/job/%s' % id)
-    return show_build(id, job.get('latest_no', 0), 'latest', job)
+    return show_build(id, job.get('latest_no', 0), job)
 
 
 @app.route('/<id>/success', methods = ['GET'])
 def show_success(id):
     job = js().call('/job/%s' % id)
-    return show_build(id, job.get('success_no', 0), 'success', job)
+    return show_build(id, job.get('success_no', 0), job)
 
 
-@app.route('/<id>/<int:build_no>', methods = ['GET'])
-def show_build(id, build_no, active_tab = None, job = None):
-    if not job:
-        job = js().call('/job/%s' % id)
+@app.route('/<id>/<int:build_no>/log', methods = ['GET'])
+def show_log(id, build_no):
+    job = js().call('/job/%s' % id)
     info = js().call('/build/%s,%d' % (id, build_no))
-
     log = info['log']
     for l in log:
         l['dt'] = (l['t'] - log[0]['t']) / 1000
     log = simplify_log(log)
 
-    return render_template('job_show.html',
+    return render_template('build_log.html',
                            id = id,
                            name = id,
-                           active_tab = active_tab,
                            build = info['build'],
-                           sessions = info['sessions'],
                            job = job,
                            log = log)
+
+
+@app.route('/<id>/<int:build_no>', methods = ['GET'])
+def show_build(id, build_no, job = None):
+    if not job:
+        job = js().call('/job/%s' % id)
+    info = js().call('/build/%s,%d' % (id, build_no))
+
+    return render_template('build_overview.html',
+                           id = id,
+                           name = id,
+                           build = info['build'],
+                           job = job,
+                           sessions = info['sessions'])
 
 
 @app.route('/new', methods = ['GET'])

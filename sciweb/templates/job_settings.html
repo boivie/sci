@@ -3,6 +3,8 @@
     <div class="row">
       <div class="span12">
 	<center>
+	  <a href="{{url_for('.show_latest', id=id)}}" class="btn btn-large">Latest Build</a>
+	  <a href="{{url_for('.show_success', id=id)}}" class="btn btn-large">Last Success</a>
 	  <a href="{{url_for('.show_start', id = id)}}" class="btn btn-large btn-primary">Start New Build!</a>
 	</center>
       </div>
