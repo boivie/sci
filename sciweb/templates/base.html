@@ -88,6 +88,13 @@
 {% block content %}{% endblock %}
     </div>
     <script src="/static/google-code-prettify/prettify.js"></script>
+    <script src="/static/js/bootstrap-tabs.js"></script>
     <script src="/static/js/sci.js"></script>
+    <script>
+      $(".log_entry").hover(
+      function() { $(this).children(".log_auto").css('visibility', 'visible'); },
+      function() { $(this).children(".log_auto").css('visibility', 'hidden'); }
+      );
+    </script>
   </body>
 </html>

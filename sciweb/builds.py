@@ -137,12 +137,14 @@ def simplify_log(log):
     for i in range(len(log)):
         skip = False
         entry = log[i]
+        entry['indent'] = 0
         if entry['type'] == 'step-begun':
             entry['end'] = find_same_entry(log[i:], entry['s'], 'step-done')
         elif entry['type'] == 'step-done':
             skip = True
         elif entry['type'] == 'run-async':
             entry['end'] = find_other_entry(log[i:], entry['params']['session_no'], 'async-joined')
+            entry['indent'] = 1
         if not skip:
             result.append(entry)
     return result

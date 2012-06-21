@@ -1,0 +1,40 @@
+<div class="row-fluid">
+  <div class="span8">
+{% if build.description %}
+    <p class="lead">{{build.description}}</p>
+{% endif %}
+    <p>Started {{build.created|pretty_date}} from job <a href="{{url_for('.show_home', id = build.job_name)}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{url_for('recipes.show', id = build.recipe)}}">{{build.recipe}}</a> ({{build.recipe_ref|short_id}}).</p>
+{% if sessions[0].result == 'success' %}
+    <div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
+{% elif sessions[0].result == 'failed' %}
+    <div class="alert alert-error"><strong>Failed!</strong> This build finished with errors.</div>
+{% elif sessions[0].result == 'error' %}
+    <div class="alert alert-error"><strong>Danger, Will Robinson!</strong> This build finished with errors.</div>
+{% elif sessions[0].result == 'aborted' %}
+    <div class="alert alert-error">This build was aborted.</div>
+{% endif %}
+{% if build.parameters %}
+    <h3>Build Parameters</h3>
+    <dl>
+{% for param in build.parameters %}
+      <dt>{{param}}</dt>
+      <dd>{{build.parameters[param]}}</dd>
+{% endfor %}
+    </dl>
+{% endif %}
+  </div>
+  <div class="span4">
+    <div class="well">
+      <h3>Build Artifacts</h3>
+      <ul>
+{% for entry in build.artifacts %}
+{% if entry.description %}
+        <li><a href="{{entry.url}}" title="{{entry.filename}}">{{entry.description}}</a></li>
+{% else %}
+        <li><a href="{{entry.url}}">{{entry.filename}}</a></li>
+{% endif %}
+{% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>

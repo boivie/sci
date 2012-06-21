@@ -1,63 +1,23 @@
-{% import 'macros.html' as macros %}
 {% extends "job_base.html" %}
 {% block pagetitle %}{{name}} #{{build.number}} - {{build.build_id}}{% endblock %}
 {% block subcontents %}
-    <div class="row">
-      <div class="span12">
-	<h2><a class="cb" href="{{url_for('.show_build', id=id, build_no=build.number)}}">#{{build.number}} - {{build.build_id}}</a></h2>
-      </div>
-    </div>
-    <div class="row">
-      <div class="span7">
-{% if build.description %}
-	<p class="lead">{{build.description}}</p>
-{% endif %}
-	<p>Started {{build.created|pretty_date}} from job <a href="{{url_for('.show_home', id = build.job_name)}}">{{build.job_name}}</a> ({{build.job_ref|short_id}}) using recipe <a href="{{url_for('recipes.show', id = build.recipe)}}">{{build.recipe}}</a> ({{build.recipe_ref|short_id}}).</p>
-{% if sessions[0].result == 'success' %}
-	<div class="alert alert-success"><strong>Success!</strong> This build finished successfully.</div>
-{% elif sessions[0].result == 'failed' %}
-	<div class="alert alert-error"><strong>Failed!</strong> This build finished with errors.</div>
-{% elif sessions[0].result == 'error' %}
-	<div class="alert alert-error"><strong>Danger, Will Robinson!</strong> This build finished with errors.</div>
-{% elif sessions[0].result == 'aborted' %}
-	<div class="alert alert-error">This build was aborted.</div>
-{% endif %}
-{% if build.parameters %}
-       <h3>Build Parameters</h3>
-       <dl>
-{% for param in build.parameters %}
-	 <dt>{{param}}</dt>
-	 <dd>{{build.parameters[param]}}</dd>
-{% endfor %}
-       </dl>
-{% endif %}
-       <h3>Log</h3>
-       <ul class="unstyled">
-{% for entry in log if entry.s == 0 %}
-{{ macros.log_entry(entry, log) }}
-{% endfor %}
-       </ul>
-       </div>
-       <div class="span5">
-	 <h3>Build Artifacts</h3>
-	 <ul>
-{% for entry in build.artifacts %}
-{% if entry.description %}
-           <li><a href="{{entry.url}}" title="{{entry.filename}}">{{entry.description}}</a></li>
-{% else %}
-           <li><a href="{{entry.url}}">{{entry.filename}}</a></li>
-{% endif %}
-{% endfor %}
-	 </ul>
-	 <h3>Build Sessions</h3>
-	 <ul>
-{% for session in sessions %}
-<li><strong>{{session.title}}</strong><br/>executed on <a href="{{url_for('agents.show', id = session.agent_id)}}">{{session.agent_nick}}</a>
-{% if session.log_file %}
-(<a href="{{session.log_file}}">LOG</a>)</li>
-{% endif %}
-{% endfor %}
-	 </ul>
-      </div>
-    </div>
+<div class="row">
+  <div class="span12">
+    <h2><a class="cb" href="{{url_for('.show_build', id=id, build_no=build.number)}}">#{{build.number}} - {{build.build_id}}</a></h2>
+  </div>
+</div>
+<div class="tabbable">
+  <ul class="nav nav-pills">
+    <li class="active"><a href="#tab1" data-toggle="tab">Overview</a></li>
+    <li><a href="#tab2" data-toggle="tab">Log</a></li>
+  </ul>
+</div>
+<div class="tab-content" style="display: block">
+  <div class="tab-pane active" id="tab1">
+{% include "job_show_overview.html" %}
+  </div>
+  <div class="tab-pane" id="tab2">
+{% include "job_show_log.html" with context %}
+  </div>
+</div>
 {% endblock %}

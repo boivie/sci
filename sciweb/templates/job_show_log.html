@@ -1,0 +1,13 @@
+{% import 'macros.html' as macros %}
+<div class="row">
+  <div class="span12">
+    <h3>Log</h3>
+    <table class="log table table-condensed table-striped">
+      <tbody>
+{% for entry in log if entry.s == 0 %}
+{{ macros.log_entry(entry, log) }}
+{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -225,3 +225,12 @@ filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
 .cb {
     color: #000000;
 }
+
+.log_entry {
+
+}
+
+.log_auto {
+    float: right;
+    visibility: hidden;
+}
