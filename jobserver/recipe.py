@@ -29,7 +29,10 @@ def get_recipe_metadata_from_blob(contents):
         header.append(line[1:])
 
     header = '\n'.join(header)
-    return yaml.safe_load(header) or {}
+    metadata = yaml.safe_load(header) or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return metadata
 
 
 def get_recipe_metadata(repo, name, ref = None):
@@ -47,5 +50,8 @@ def get_recipe_history(repo, name, limit = 20):
                         'msg': c.message.splitlines()[0],
                         'date': c.commit_time,
                         'by': c.committer})
-        ref = c.parents[0]
+        try:
+            ref = c.parents[0]
+        except IndexError:
+            break
     return entries

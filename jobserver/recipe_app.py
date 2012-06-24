@@ -18,9 +18,8 @@ def list_recipes():
             continue
         metadata = get_recipe_metadata(repo, name, repo.refs[name])
         info = {'id': name[19:],
-                'description': metadata.get('Description', '')}
-        if metadata.get('Tags'):
-            info['tags'] = metadata['Tags']
+                'description': metadata.get('Description', ''),
+                'tags': metadata.get('Tags', [])}
         recipes.append(info)
     return jsonify(recipes = recipes)
 
