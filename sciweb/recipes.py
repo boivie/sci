@@ -14,7 +14,8 @@ def edit_post(id):
     try:
         c().call('/recipe/%s.json' % id,
                  input = dict(contents = request.form['contents'],
-                              old = request.form['ref']))
+                              old = request.form['ref'],
+                              commitmsg = request.form['commitmsg']))
     except HttpError as e:
         if e.code != 412:
             abort(500)
@@ -30,22 +31,25 @@ def show_edit(id):
 
     return render_template('recipes_edit.html',
                            recipe = recipe,
-                           id = id,
-                           active_tab = 'edit')
+                           id = id)
 
 
 @app.route('/history/<id>', methods = ['GET'])
 def show_history(id):
-    pass
+    info = c().call('/recipe/%s/history.json' % id)
+
+    return render_template('recipes_history.html',
+                           id = id,
+                           entries = info['entries'])
 
 
 @app.route('/show/<id>', methods = ['GET'])
 def show(id):
-    recipe = c().call('/recipe/%s.json' % id)
+    recipe = c().call('/recipe/%s.json' % id,
+                      ref = request.args.get('ref'))
 
     return render_template('recipes_show.html',
                            recipe = recipe,
-                           active_tab = 'show',
                            id = id)
 
 

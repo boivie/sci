@@ -1,0 +1,25 @@
+{% extends "recipes_base.html" %}
+{% set active_tab = "history" %}
+{% block lead %}All revisions are saved. Nothing is ever lost.{% endblock %}
+{% block content %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>When</th>
+      <th>Author</th>
+      <th>Message</th>
+    </tr>
+  </thead>
+  <tbody>
+{% for entry in entries %}
+    <tr>
+      <td><a href="{{url_for('recipes.show', id=id, ref=entry.ref)}}">{{entry.ref|short_id}}</a></td>
+      <td>{{entry.date|date_hm}}</td>
+      <td>{{entry.by}}</td>
+      <td>{{entry.msg}}</td>
+    </tr>
+{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

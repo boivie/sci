@@ -1,4 +1,5 @@
 {% extends "recipes_base.html" %}
+{% set active_tab = "edit" %}
 {% block title %}edit/{{id}}{% endblock %}
 {% block lead %}Edit and make changes. We keep history of everything.{% endblock %}
 {% block content %}
@@ -11,6 +12,12 @@
               <label class="control-label" for="textarea">Contents</label>
               <div class="controls">
 		<textarea name="contents" class="editbox" id="textarea" cols="80" rows="25" wrap="off">{{recipe.contents}}</textarea>
+              </div>
+            </div>
+            <div class="control-group">
+              <label class="control-label" for="commitmsg">Edit Summary</label>
+              <div class="controls">
+		<input type="text" name="commitmsg" class="editbox" id="commitmsg" placeholder="An optional message describing what you changed"/>
               </div>
             </div>
             <div class="form-actions">

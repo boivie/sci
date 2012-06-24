@@ -48,6 +48,9 @@ class HttpRequest(object):
         self.c = httplib.HTTPConnection(u.hostname, u.port)
         url = u.path
         if kwargs:
+            for n in kwargs.keys():
+                if kwargs[n] is None:
+                    kwargs.pop(n)
             url += "?" + urllib.urlencode(kwargs)
         self.c.request(method, url, input, headers)
         self.r = self.c.getresponse()
