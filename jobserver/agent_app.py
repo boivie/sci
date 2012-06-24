@@ -9,6 +9,7 @@ import jobserver.db as jdb
 from jobserver.gitdb import config
 from jobserver.build import create_session, get_session, get_build_info
 from jobserver.build import set_session_done, set_session_running
+from jobserver.build import get_session_title
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
 from jobserver.job import get_job, merge_job_parameters
 from jobserver.recipe import get_recipe_contents
@@ -46,11 +47,9 @@ class SessionDone(LogItem):
 class RunAsync(LogItem):
     type = 'run-async'
 
-    def __init__(self, session_no, step_name, args, kwargs):
+    def __init__(self, session_no, title):
         self.params = dict(session_no = int(session_no),
-                           step_name = step_name,
-                           args = args,
-                           kwargs = kwargs)
+                           title = title)
 
 
 def add_to_history(pipe, agent_id, session_id):
@@ -135,8 +134,8 @@ def dispatch():
                                 run_info = input['run_info'],
                                 state = SESSION_STATE_TO_BACKEND)
     session_id = '%s-%s' % (input['build_id'], session_no)
-    item = RunAsync(session_no, input['run_info']['step_name'],
-                    input['run_info']['args'], input['run_info']['kwargs'])
+    session = dict(run_info = input['run_info'])
+    item = RunAsync(session_no, get_session_title(session))
     add_slog(db, input['parent'], item)
     r = ResQ()
     r.enqueue(DispatchSession, session_id)
@@ -214,3 +213,31 @@ def list_queue():
             queue.append({"id": did,
                           "labels": info["labels"]})
     return jsonify(queue = queue)
+
+
+@app.route('/details/<agent_id>')
+def agent_details(agent_id):
+    db = jdb.conn()
+    info = db.hgetall(jdb.KEY_AGENT % agent_id)
+    if not info:
+        abort(404)
+    history = []
+    for session_id in db.lrange(jdb.KEY_AGENT_HISTORY % agent_id, 0, 19):
+        build_id = session_id.split('-')[0]
+        build = get_build_info(db, build_id)
+        session = get_session(db, session_id)
+        history.append({'session_id': session_id,
+                        'build_id': build['build_id'],
+                        'job_name': build['job_name'],
+                        'number': build['number'],
+                        'started': session['started'],
+                        'ended': session['ended'],
+                        'result': session['result'],
+                        'title': get_session_title(session)})
+
+    return jsonify(id = agent_id,
+                   nick = info.get('nick', ''),
+                   state = info["state"],
+                   seen = int(info["seen"]),
+                   labels = info["labels"].split(","),
+                   history = history)

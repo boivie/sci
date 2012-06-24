@@ -7,7 +7,7 @@ from jobserver.db import conn, KEY_AGENT
 from jobserver.gitdb import config
 from jobserver.job import get_job
 from jobserver.build import new_build, get_build_info, set_session_running
-from jobserver.build import set_session_done, get_session
+from jobserver.build import set_session_done, get_session, get_session_title
 from jobserver.build import KEY_JOB_BUILDS, set_session_queued
 from async.dispatch_session import DispatchSession
 
@@ -83,13 +83,10 @@ def get_build2(job_name, number):
     sessions = []
     for i in range(int(build['next_sess_id'])):
         s = get_session(db, '%s-%d' % (build_id, i))
-        ri = s['run_info'] or {}
-        args = ", ".join(ri.get('args', []))
-        title = "%s(%s)" % (ri.get('step_name', 'main'), args)
         sessions.append({'num': i,
                          'agent_id': s['agent'],
                          'agent_nick': '',
-                         'title': title,
+                         'title': get_session_title(s),
                          'log_file': s['log_file'],
                          'parent': s['parent'],
                          'state': s['state'],

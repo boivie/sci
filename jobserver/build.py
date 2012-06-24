@@ -88,7 +88,6 @@ def get_build_info(db, build_id):
         return None
     build['number'] = int(build['number'])
     build['parameters'] = json.loads(build['parameters'])
-    print(build_id)
     build['artifacts'] = json.loads(build['artifacts'])
     return build
 
@@ -102,11 +101,20 @@ def create_session(db, build_id, parent = None, labels = [],
                    agent = '',
                    run_info = json.dumps(run_info),
                    log_file = '',
+                   started = 0,
+                   ended = 0,
                    output = json.dumps(None))
     session_no = db.hincrby(KEY_BUILD % build_id, 'next_sess_id', 1) - 1
     session_id = '%s-%s' % (build_id, session_no)
     db.hmset(KEY_SESSION % session_id, session)
     return session_no
+
+
+def get_session_title(session):
+    ri = session['run_info'] or {}
+    args = ", ".join(ri.get('args', []))
+    title = "%s(%s)" % (ri.get('step_name', 'main'), args)
+    return title
 
 
 def get_session(db, session_id):
@@ -117,6 +125,8 @@ def get_session(db, session_id):
     session['labels'].remove('')  # if labels is empty
     session['run_info'] = json.loads(session['run_info'])
     session['output'] = json.loads(session['output'])
+    session['started'] = int(session.get('started', '0'))
+    session['ended'] = int(session.get('ended', '0'))
     return session
 
 
@@ -124,7 +134,8 @@ def set_session_done(db, session_id, result, output, log_file):
     db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_DONE,
                                         'result': result,
                                         'output': json.dumps(output),
-                                        'log_file': log_file})
+                                        'log_file': log_file,
+                                        'ended': get_ts()})
 
 
 def set_session_queued(db, session_id):
@@ -137,7 +148,8 @@ def set_session_to_agent(db, session_id, agent_id):
 
 
 def set_session_running(db, session_id):
-    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_RUNNING})
+    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_RUNNING,
+                                        'started': get_ts()})
 
 
 def get_session_labels(db, session_id):
