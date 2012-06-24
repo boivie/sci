@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Create a new recipe{% endblock %}
+{% block lead %}Recipes also have a new car smell{% endblock %}
+{% set active_page = "recipes" %}
+{% block content %}
+<form class="form-horizontal" method="POST">
+  <div class="row">
+    <div class="span8">
+      <fieldset>
+	<div class="control-group">
+	  <label class="control-label" for="name">Recipe Name</label>
+	  <div class="controls">
+            <input type="text" class="input-xlarge" id="name" name="name">
+            <p class="help-block">Be careful when choosing a name - it can't currently be changed.</p>
+	  </div>
+	</div>
+	<div class="control-group">
+	  <label class="control-label" for="copyof">Make it a copy of</label>
+	  <div class="controls">
+            <select id="copyof" name="copyof">
+              <option value=" ">None. Create an empty recipe</option>
+	      <optgroup label="Existing Recipes">
+		{% for recipe in recipes %}
+		<option value="{{recipe.id}}">{{recipe.id}}</option>
+		{% endfor %}
+	      </optgroup>
+            </select>
+	  </div>
+	</div>
+	<div class="form-actions">
+	  <button type="submit" class="btn btn-primary">Create</button>
+	  <button class="btn">Cancel</button>
+	</div>
+      </fieldset>
+    </div>
+    <div class="span4">
+      <div class="alert alert-info">
+	<strong>How to choose a name</strong>
+	<p>The name can be made of lowercase letters, numbers and dashes.</p>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

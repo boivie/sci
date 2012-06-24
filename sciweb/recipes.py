@@ -9,6 +9,27 @@ def c():
     return HttpClient('http://' + current_app.config['JS_SERVER_NAME'])
 
 
+@app.route('/create', methods = ['POST'])
+def create_post():
+    id = request.form['name']
+    commitmsg = "Initial revision"
+    contents = """\
+# Description:
+#    An empty recipe that does nothing right now
+
+# Write your recipe here!
+"""
+    copyof = request.form['copyof'].strip()
+    if copyof:
+        copy = c().call('/recipe/%s.json' % copyof)
+        contents = copy['contents']
+
+    c().call('/recipe/%s.json' % id,
+             input = dict(contents = contents,
+                          commitmsg = commitmsg))
+    return redirect(url_for('.show', id = id))
+
+
 @app.route('/edit/<id>', methods = ['POST'])
 def edit_post(id):
     try:
@@ -58,4 +79,12 @@ def index():
     recipes = c().call('/recipe/')['recipes']
 
     return render_template('recipes_list.html',
+                           recipes = recipes)
+
+
+@app.route('/create', methods = ['GET'])
+def create():
+    recipes = c().call('/recipe/')['recipes']
+
+    return render_template('recipes_create.html',
                            recipes = recipes)

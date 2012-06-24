@@ -1,14 +1,23 @@
+{% import "macros.html" as macros %}
 {% extends "base.html" %}
 {% block title %}Recipes{% endblock %}
 {% block lead %}Recipes are building instructions that are used by jobs to create builds.{% endblock %}
 {% set active_page = "recipes" %}
 {% block content %}
+<p style="float:right">
+  <a class="btn btn-warning" href="{{url_for('.create')}}"><i class="icon-white icon-plus"></i> Create Recipe</a>
+</p>
 <table class="table table-striped">
   <tbody>
 {% for recipe in recipes %}
     <tr>
       <td><a href="{{url_for('.show', id = recipe.id)}}">{{recipe.id}}</a></td>
-      <td>{{recipe.description|default("none given")}}</td>
+      <td>
+	<div>
+	  {{recipe.description|default("No description given",True)}}
+	</div>
+	<div>{{macros.show_tags(recipe.tags)}}</div>
+      </td>
     </tr>
 {% endfor %}
   </tbody>

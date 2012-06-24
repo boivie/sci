@@ -1,0 +1,5 @@
+{% macro show_tags(tags) -%}
+{%- for tag in tags %}
+<span class="label label-success">{{tag}}</span>
+{%- endfor -%}
+{%- endmacro %}
