@@ -4,6 +4,7 @@ from jobserver.gitdb import config, create_commit, update_head
 from jobserver.gitdb import NoChangesException, CommitException
 from jobserver.recipe import get_recipe_metadata_from_blob
 from jobserver.recipe import get_recipe_metadata, get_recipe_contents
+from jobserver.recipe import get_recipe_history
 
 app = Blueprint('recipes', __name__)
 
@@ -28,7 +29,8 @@ def list_recipes():
 def do_post_recipe(name):
     repo = config()
     contents = request.json['contents'].encode('utf-8')
-
+    msg = request.json.get('commitmsg', '').encode('utf-8')
+    msg = msg or "No message given"
     while True:
         ref = request.json.get('old')
         if name == 'private':
@@ -40,7 +42,8 @@ def do_post_recipe(name):
         try:
             commit = create_commit(repo,
                                    [('build.py', 0100755, contents)],
-                                   parent = ref)
+                                   parent = ref,
+                                   message = msg)
         except NoChangesException:
             return jsonify(ref = ref)
 
@@ -55,7 +58,14 @@ def do_post_recipe(name):
 @app.route('/<name>.json', methods=['GET'])
 def do_get_recipe(name):
     repo = config()
-    ref, data = get_recipe_contents(repo, name)
+    ref, data = get_recipe_contents(repo, name,
+                                    ref = request.args.get('ref'))
     return jsonify(ref = ref,
                    contents = data,
                    metadata = get_recipe_metadata_from_blob(data))
+
+
+@app.route('/<name>/history.json', methods=['GET'])
+def do_get_recipe_history(name):
+    repo = config()
+    return jsonify(entries = get_recipe_history(repo, name))

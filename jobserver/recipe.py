@@ -36,3 +36,16 @@ def get_recipe_metadata(repo, name, ref = None):
     ref, data = get_recipe_contents(repo, name, ref)
     metadata = get_recipe_metadata_from_blob(data)
     return metadata
+
+
+def get_recipe_history(repo, name, limit = 20):
+    entries = []
+    ref = get_recipe_ref(repo, name)
+    for i in range(limit):
+        c = repo.get_object(ref)
+        entries.append({'ref': ref,
+                        'msg': c.message.splitlines()[0],
+                        'date': c.commit_time,
+                        'by': c.committer})
+        ref = c.parents[0]
+    return entries
