@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{agent.nick}}{% endblock %}
+{% block lead %}{% endblock %}
+{% set active_page = "agents" %}
+{% block content %}
+<dl>
+  <dt>Agent ID</dt>
+  <dd>{{agent.id}}</dd>
+  <dt>Labels</dt>
+  <dd>{{agent.labels|format_array}}</dd>
+  <dt>Last seen</dt>
+  <dd>{{agent.seen|pretty_date}}</dd>
+  <dt>Status</dt>
+  <dd>{{agent.state}}</dd>
+</dl>
+<h3>History</h3>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Started</th>
+      <th>Duration</th>
+      <th>Build</th>
+    </tr>
+  </thead>
+  <tbody>
+{% for h in agent.history %}
+    <tr>
+      <td style="white-space: nowrap">{{h.started|date_hm}}
+      <td style="white-space: nowrap">{{(h.ended-h.started)|format_dur}}</td>
+      <td style="width: 100%"><a href="{{url_for('builds.show_build', id=h.job_name, build_no=h.number)}}">{{h.build_id}}</a> - {{h.title}}</td>
+    </tr>
+{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

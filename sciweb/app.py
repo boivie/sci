@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Flask, redirect, url_for
 import json, logging, types
 from recipes import app as recipes_app
@@ -32,6 +34,12 @@ def format_array(arr):
     return ", ".join(arr)
 
 
+@app.template_filter('date_hm')
+def date_hm(ts):
+    dt = datetime.fromtimestamp(ts)
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
 @app.template_filter('pretty_dur')
 def pretty_dur(dur):
     if dur < 1000:
@@ -56,7 +64,6 @@ def pretty_date(time=False):
     pretty string like 'an hour ago', 'Yesterday', '3 months ago',
     'just now', etc
     """
-    from datetime import datetime
     now = datetime.now()
     if type(time) in types.StringTypes:
         time = int(time)

@@ -15,7 +15,10 @@ def edit(id):
 
 @app.route('/show/<id>', methods = ['GET'])
 def show(id):
-    return "Show"
+    info = ahq().call('/agent/details/%s' % id)
+    print(info)
+    return render_template('agent_show.html',
+                           agent = info)
 
 
 @app.route('/', methods = ['GET'])
