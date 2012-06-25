@@ -18,6 +18,18 @@ def put_job(name):
     job = request.json['contents']
     if type(job) is not types.DictType:
         job = yaml.safe_load(job)
+
+    # Clean the job a bit.
+    rref = job.get('recipe_ref', '').strip()
+    job.pop('recipe_ref', None)
+    if rref:
+        job['recipe_ref'] = rref
+    tags = [t.strip() for t in job.get('tags', [])]
+    if '' in tags:
+        tags.remove('')
+    job.pop('tags', None)
+    if tags:
+        job['tags'] = tags
     job['name'] = name
 
     while True:
@@ -95,6 +107,7 @@ def list_jobs():
         job, job_ref = get_job(repo, job_name, repo.refs[name])
         info = dict(id = job_name,
                     recipe = job['recipe'],
-                    description = job.get('description', ''))
+                    description = job.get('description', ''),
+                    tags = job.get('tags', []))
         jobs.append(info)
     return jsonify(jobs = jobs)
