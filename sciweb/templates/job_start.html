@@ -5,7 +5,7 @@
    <div class="row">
      <div class="span7">
        <p class="lead">Enter an optional description and hit "Start Build". If you want to make your build more customized, override some build parameters to the left.</p>
-       <form class="form-horizontal" method="POST" action="{{post_url}}">
+       <form class="form-horizontal" method="POST" action="{{url_for('.start', id=id)}}">
          <fieldset>
 	   <div class="control-group">
              <label class="control-label" for="description">Description</label>

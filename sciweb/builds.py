@@ -57,7 +57,6 @@ def show_raw_edit(id):
     info = js().call('/job/%s' % id, show = 'raw')
     return render_template('job_edit_raw.html',
                            id = id,
-                           name = id,
                            job = info)
 
 
@@ -67,7 +66,6 @@ def show_edit(id):
 
     info = js().call('/job/%s' % id)
     params = info['parameters']
-    print(info['settings'])
     for k, v in params.iteritems():
         # 'default' doesn't play well in jquery.tmpl - why?
         if 'default' in v:
@@ -79,12 +77,14 @@ def show_edit(id):
 
     return render_template('job_edit.html',
                            id = id,
-                           name = id,
-                           active_tab = 'edit',
                            params = params,
-                           post_url = url_for('.edit', id = id),
                            job = info,
                            recipes = recipes)
+
+
+@app.route('/<id>/edit-history', methods = ['GET'])
+def show_edit_history(id):
+    return "TODO"
 
 
 @app.route('/<id>/start', methods = ['POST'])
@@ -115,9 +115,7 @@ def show_start(id):
 
     return render_template('job_start.html',
                            id = id,
-                           name = id,
                            params = params,
-                           post_url = url_for('.start', id = id),
                            job = info)
 
 
@@ -125,12 +123,8 @@ def show_start(id):
 @app.route('/<id>', methods = ['GET'])
 def show_home(id):
     info = js().call('/job/%s' % id)
-    info['settings']['recipe_url'] = url_for('recipes.show',
-                                             id = info['settings']['recipe'])
     return render_template('job_settings.html',
                            id = id,
-                           name = id,
-                           active_tab = 'home',
                            job = info)
 
 
@@ -139,8 +133,7 @@ def show_history(id):
     info = js().call('/job/%s' % id)
     return render_template('job_history.html',
                            id = id,
-                           job = info,
-                           name = id)
+                           job = info)
 
 
 def find_same_entry(log, session_no, t):
@@ -198,7 +191,6 @@ def show_log(id, build_no):
 
     return render_template('build_log.html',
                            id = id,
-                           name = id,
                            build = info['build'],
                            job = job,
                            log = log)
@@ -212,7 +204,6 @@ def show_build(id, build_no, job = None):
 
     return render_template('build_overview.html',
                            id = id,
-                           name = id,
                            build = info['build'],
                            job = job,
                            sessions = info['sessions'])

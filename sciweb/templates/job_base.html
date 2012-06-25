@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block pagetitle %}{{name}}{% endblock %}
-{% block title %}{{name}}{% endblock %}
+{% block pagetitle %}{{id}}{% endblock %}
+{% block title %}{{id}}{% endblock %}
 {% block lead %}{{job.settings.description|default("No description has been entered for this job.")}}{% endblock %}
 {% set active_page = "builds" %}
 {% if not tab_bar %}
