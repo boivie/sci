@@ -1,6 +1,7 @@
 {% extends "job_edit_base.html" %}
 {% block subcontents %}
-<form class="form-horizontal" method="POST" action="{{post_url}}">
+<form class="form-horizontal" method="POST" action="{{url_for('.edit', id=id)}}">
+  <input type="hidden" name="ref" value="{{job.ref}}"/>
   <div class="row">
     <div class="span12">
 	<legend>General</legend>
@@ -17,21 +18,26 @@
               <option value="{{recipe.id}}"{% if recipe.id==job.settings.recipe%} selected="selected"{%endif%}>{{recipe.id}}</option>
 {% endfor %}
             </select>
-            <p class="help-block">The recipe to follow</p>
           </div>
 	</div>
 	<div class="control-group">
           <label class="control-label" for="recipe_ref">Recipe Reference</label>
           <div class="controls">
 	    <input type="text" class="input-xlarge" name="recipe_ref" value="{{job.settings.recipe_ref}}">
-            <p class="help-block">The recipe SHA1 if you want to lock it down</p>
+            <p class="help-block">Optional recipe revision if you want to lock it down</p>
           </div>
 	</div>
 	<div class="control-group">
           <label class="control-label" for="description">Description</label>
           <div class="controls">
 	    <input type="text" class="input-xlarge" name="description" value="{{job.settings.description}}">
-            <p class="help-block">A short job description</p>
+          </div>
+	</div>
+	<div class="control-group">
+          <label class="control-label" for="description">Tags</label>
+          <div class="controls">
+	    <input type="text" class="input-xlarge" name="tags" value="{{job.settings.tags|join(', ')}}">
+            <p class="help-block">Optional tags separated by comma</p>
           </div>
 	</div>
       </fieldset>
@@ -108,5 +114,8 @@ function make_active(name) {
   }
 }
 {% endraw %}
+{% for p in job.settings.parameters %}
+make_active('{{p}}');
+{% endfor %}
 </script>
 {% endblock %}

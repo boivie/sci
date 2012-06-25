@@ -1,6 +1,7 @@
 {% extends "job_edit_base.html" %}
+{% set active_tab = "raw_edit" %}
 {% block subcontents %}
-<form  method="POST" action="{{url_for('.edit', id=id)}}">
+<form  method="POST" action="{{url_for('.raw_edit', id=id)}}">
   <input type="hidden" name="ref" value="{{job.ref}}"/>
   <div class="row">
     <div class="span12">

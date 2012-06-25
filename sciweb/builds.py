@@ -11,6 +11,34 @@ def js():
 
 @app.route('/<id>/edit', methods = ['POST'])
 def edit(id):
+    old = request.form['ref']
+    # Only manipulate the fields we can change in the UI
+    info = js().call('/job/%s@%s' % (id, old))
+    info['settings']['description'] = request.form['description']
+    info['settings']['recipe'] = request.form['recipe']
+    info['settings']['recipe_ref'] = request.form.get('recipe_ref', '')
+    info['settings']['tags'] = request.form['tags'].split(',')
+    params = {}
+    for name in [n for n in request.form.keys() if n.startswith("param_")]:
+        pname = name[6:]
+        params[pname] = {'default': request.form[name],
+                         'required': False}
+    info['settings']['parameters'] = params
+    try:
+        js().call('/job/%s' % id,
+                  input = dict(contents = info['settings'],
+                               old = old))
+    except HttpError as e:
+        if e.code != 412:
+            abort(500)
+        else:
+            pass
+            # TODO
+    return redirect(url_for('.show_home', id = id))
+
+
+@app.route('/<id>/raw_edit', methods = ['POST'])
+def raw_edit(id):
     try:
         js().call('/job/%s' % id,
                   input = dict(contents = request.form['contents'],
@@ -30,7 +58,6 @@ def show_raw_edit(id):
     return render_template('job_edit_raw.html',
                            id = id,
                            name = id,
-                           active_tab = 'raw_edit',
                            job = info)
 
 
@@ -40,7 +67,7 @@ def show_edit(id):
 
     info = js().call('/job/%s' % id)
     params = info['parameters']
-    print(info)
+    print(info['settings'])
     for k, v in params.iteritems():
         # 'default' doesn't play well in jquery.tmpl - why?
         if 'default' in v:

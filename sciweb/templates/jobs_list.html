@@ -1,14 +1,22 @@
+{% import "macros.html" as macros %}
 {% extends "base.html" %}
 {% block title %}Jobs & Builds{% endblock %}
 {% block lead %}Click on a job to see the builds.{% endblock %}
 {% set active_page = "builds" %}
 {% block content %}
-<table class="table table-striped">
+<p style="float:right">
+  <a class="btn btn-warning" href="#"><i class="icon-white icon-plus"></i> Create Job</a>
+</p><table class="table table-striped">
   <tbody>
 {% for job in jobs %}
     <tr>
       <td><a href="{{url_for('.show_home', id = job.id)}}">{{job.id}}</a></td>
-      <td>{{job.description|default("none given")}}</td>
+      <td>
+	<div>
+	  {{job.description|default("No description given",True)}}
+	</div>
+	<div>{{macros.show_tags(job.tags)}}</div>
+      </td>
     </tr>
 {% endfor %}
   </tbody>
