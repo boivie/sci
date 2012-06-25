@@ -20,6 +20,7 @@ def put_job(name):
         job = yaml.safe_load(job)
 
     # Clean the job a bit.
+    job['recipe'] = job['recipe'].strip()
     rref = job.get('recipe_ref', '').strip()
     job.pop('recipe_ref', None)
     if rref:
