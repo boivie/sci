@@ -5,7 +5,7 @@
 {% set active_page = "builds" %}
 {% block content %}
 <p style="float:right">
-  <a class="btn btn-warning" href="#"><i class="icon-white icon-plus"></i> Create Job</a>
+  <a class="btn btn-warning" href="{{url_for('.show_new')}}"><i class="icon-white icon-plus"></i> Create Job</a>
 </p><table class="table table-striped">
   <tbody>
 {% for job in jobs %}

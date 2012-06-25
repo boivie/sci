@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Create a new Job{% endblock %}
+{% block lead %}{% endblock %}
+{% set active_page = "builds" %}
+{% block content %}
+<form class="form-horizontal" method="POST" action="{{url_for('.new')}}">
+  <div class="row">
+    <div class="span8">
+      <fieldset>
+	<div class="control-group">
+          <label class="control-label" for="name">Name</label>
+          <div class="controls">
+	    <input type="text" class="input-xlarge" name="name" value="" placeholder="the-job-name-goes-here">
+            <p class="help-block">Be careful when choosing a name - it can't currently be changed.</p>
+          </div>
+	</div>
+	<div class="control-group">
+          <label class="control-label" for="recipe">Recipe</label>
+          <div class="controls">
+	    <select name="recipe" class="input-xlarge">
+{% for recipe in recipes %}
+              <option value="{{recipe.id}}">{{recipe.id}}</option>
+{% endfor %}
+            </select>
+          </div>
+	</div>
+      </fieldset>
+      <div class="form-actions">
+	<button type="submit" class="btn btn-primary btn-large">Continue</button>
+	<a href="{{url_for('.index')}}" class="btn btn-large">Cancel</a>
+      </div>
+    </div>
+    <div class="span4">
+      <div class="alert alert-info">
+	<strong>How to choose a name</strong>
+	<p>The name can be made of lowercase letters, numbers and dashes.</p>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

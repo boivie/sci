@@ -209,9 +209,20 @@ def show_build(id, build_no, job = None):
                            sessions = info['sessions'])
 
 
+@app.route('/new', methods = ['POST'])
+def new():
+    id = request.form['name'].strip()
+    contents = {'recipe': request.form['recipe']}
+    js().call('/job/%s' % id,
+              input = dict(contents = contents))
+    return redirect(url_for('.show_edit', id = id))
+
+
 @app.route('/new', methods = ['GET'])
 def show_new():
-    return render_template('jobs_list.html')
+    recipes = js().call('/recipe/')['recipes']
+    return render_template('job_create.html',
+                           recipes = recipes)
 
 
 @app.route('/', methods = ['GET'])
