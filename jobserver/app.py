@@ -1,10 +1,12 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, g
 
 from jobserver.build_app import app as build_app
 from jobserver.slog_app import app as slog_app
 from jobserver.job_app import app as job_app
 from jobserver.recipe_app import app as recipe_app
 from jobserver.agent_app import app as agent_app
+from jobserver.gitdb import config
+from jobserver.db import conn
 
 app = Flask(__name__)
 app.register_blueprint(build_app, url_prefix='/build')
@@ -17,3 +19,14 @@ app.register_blueprint(agent_app, url_prefix='/agent')
 @app.route("/info", methods = ['GET'])
 def getinfo():
     return jsonify(ss_url = app.config['SS_URL'])
+
+
+@app.before_request
+def before_request():
+    g.repo = config()
+    g.db = conn()
+
+
+@app.after_request
+def after_request(resp):
+    return resp

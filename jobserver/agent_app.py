@@ -1,12 +1,11 @@
 import json
 import time
 
-from flask import Blueprint, request, abort, jsonify, current_app
+from flask import Blueprint, request, abort, jsonify, current_app, g
 from pyres import ResQ
 
 from jobserver.utils import get_ts
 import jobserver.db as jdb
-from jobserver.gitdb import config
 from jobserver.build import create_session, get_session, get_build_info
 from jobserver.build import set_session_done, set_session_running
 from jobserver.build import get_session_title
@@ -59,7 +58,6 @@ def add_to_history(pipe, agent_id, session_id):
 
 @app.route('/register', methods=['POST'])
 def do_register():
-    db = jdb.conn()
     agent_id = request.json['id']
 
     info = {"ip": request.remote_addr,
@@ -69,7 +67,7 @@ def do_register():
             "seen": get_ts(),
             "labels": ",".join(request.json["labels"])}
 
-    with db.pipeline() as pipe:
+    with g.db.pipeline() as pipe:
         pipe.hmset(jdb.KEY_AGENT % agent_id, info)
         pipe.sadd(jdb.KEY_ALL, agent_id)
 
@@ -84,10 +82,8 @@ def do_register():
 
 @app.route('/available/<agent_id>', methods=['POST'])
 def check_in_available(agent_id):
-    db = jdb.conn()
-
     session_id = request.json['session_id']
-    with db.pipeline() as pipe:
+    with g.db.pipeline() as pipe:
         set_session_done(pipe, session_id, request.json['result'],
                          request.json['output'], request.json['log_file'])
         add_slog(pipe, session_id, SessionDone(request.json['result']))
@@ -103,9 +99,7 @@ def check_in_available(agent_id):
 
 @app.route('/busy/<agent_id>', methods=['POST'])
 def check_in_busy(agent_id):
-    db = jdb.conn()
-
-    with db.pipeline() as pipe:
+    with g.db.pipeline() as pipe:
         session_id = request.json['session_id']
         set_session_running(pipe, session_id)
         add_slog(pipe, session_id, SessionStarted())
@@ -119,16 +113,14 @@ def check_in_busy(agent_id):
 
 @app.route('/ping/<agent_id>', methods=['POST'])
 def ping(agent_id):
-    db = jdb.conn()
-    db.hset(jdb.KEY_AGENT % agent_id, 'seen', get_ts())
+    g.db.hset(jdb.KEY_AGENT % agent_id, 'seen', get_ts())
     return jsonify()
 
 
 @app.route('/dispatch', methods=['POST'])
 def dispatch():
-    db = jdb.conn()
     input = request.json
-    session_no = create_session(db, input['build_id'],
+    session_no = create_session(g.db, input['build_id'],
                                 parent = input['parent'],
                                 labels = input['labels'],
                                 run_info = input['run_info'],
@@ -136,7 +128,7 @@ def dispatch():
     session_id = '%s-%s' % (input['build_id'], session_no)
     session = dict(run_info = input['run_info'])
     item = RunAsync(session_no, get_session_title(session))
-    add_slog(db, input['parent'], item)
+    add_slog(g.db, input['parent'], item)
     r = ResQ()
     r.enqueue(DispatchSession, session_id)
     return jsonify(session_id = session_id)
@@ -144,9 +136,8 @@ def dispatch():
 
 @app.route('/result/<session_id>', methods=['GET'])
 def get_session_result(session_id):
-    db = jdb.conn()
     while True:
-        info = get_session(db, session_id)
+        info = get_session(g.db, session_id)
         if not info:
             abort(404, "Session ID not found")
         if info['state'] == SESSION_STATE_DONE:
@@ -157,19 +148,17 @@ def get_session_result(session_id):
 
 @app.route('/session/<session_id>')
 def get_session_info(session_id):
-    db = jdb.conn()
-    repo = config()
-    session = get_session(db, session_id)
+    session = get_session(g.db, session_id)
     build_uuid = session_id.split('-')[0]
-    build = get_build_info(db, build_uuid)
-    ref, recipe = get_recipe_contents(repo, build['recipe'],
+    build = get_build_info(g.db, build_uuid)
+    ref, recipe = get_recipe_contents(g.repo, build['recipe'],
                                       build.get('recipe_ref'))
-    job, ref = get_job(repo, build['job_name'], build.get('job_ref'))
+    job, ref = get_job(g.db, build['job_name'], build.get('job_ref'))
 
     # Calculate the actual parameters - setting defaults if static value.
     # (parameters that have a function as default value will have them
     #  called just before starting the job)
-    param_def = merge_job_parameters(repo, job)
+    param_def = merge_job_parameters(g.repo, job)
     parameters = build['parameters']
 
     for name in param_def:
@@ -188,10 +177,9 @@ def get_session_info(session_id):
 
 @app.route('/list')
 def list_agents():
-    db = jdb.conn()
     all = []
-    for agent_id in db.smembers(jdb.KEY_ALL):
-        info = db.hgetall(jdb.KEY_AGENT % agent_id)
+    for agent_id in g.db.smembers(jdb.KEY_ALL):
+        info = g.db.hgetall(jdb.KEY_AGENT % agent_id)
         if info:
             all.append({'id': agent_id,
                         'nick': info.get('nick', ''),
@@ -204,10 +192,9 @@ def list_agents():
 
 @app.route('/queue')
 def list_queue():
-    db = jdb.conn()
     queue = []
-    for did in db.zrange(jdb.KEY_QUEUE, 0, -1):
-        info = db.get(jdb.KEY_DISPATCH_INFO % did)
+    for did in g.db.zrange(jdb.KEY_QUEUE, 0, -1):
+        info = g.db.get(jdb.KEY_DISPATCH_INFO % did)
         if info:
             info = json.loads(info)
             queue.append({"id": did,
@@ -217,15 +204,14 @@ def list_queue():
 
 @app.route('/details/<agent_id>')
 def agent_details(agent_id):
-    db = jdb.conn()
-    info = db.hgetall(jdb.KEY_AGENT % agent_id)
+    info = g.db.hgetall(jdb.KEY_AGENT % agent_id)
     if not info:
         abort(404)
     history = []
-    for session_id in db.lrange(jdb.KEY_AGENT_HISTORY % agent_id, 0, 19):
+    for session_id in g.db.lrange(jdb.KEY_AGENT_HISTORY % agent_id, 0, 19):
         build_id = session_id.split('-')[0]
-        build = get_build_info(db, build_id)
-        session = get_session(db, session_id)
+        build = get_build_info(g.db, build_id)
+        session = get_session(g.db, session_id)
         history.append({'session_id': session_id,
                         'build_id': build['build_id'],
                         'job_name': build['job_name'],

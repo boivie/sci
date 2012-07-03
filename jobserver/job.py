@@ -1,18 +1,19 @@
+import json
+
+from flask import g
 import yaml
 from jobserver.recipe import get_recipe_metadata
+from jobserver.db import KEY_JOB
 
 
-KEY_JOB = 'job:%s'
-
-
-def get_job(repo, name, ref = None, raw = False):
+def get_job(db, name, ref = None, raw = False):
     if ref:
-        commit = repo.get_object(ref)
+        commit = g.repo.get_object(ref)
     else:
-        commit = repo.get_object(repo.refs['refs/heads/jobs/%s' % name])
-    tree = repo.get_object(commit.tree)
+        commit = g.repo.get_object(g.repo.refs['refs/heads/jobs/%s' % name])
+    tree = g.repo.get_object(commit.tree)
     mode, sha = tree['job.yaml']
-    obj = repo.get_object(sha).data
+    obj = g.repo.get_object(sha).data
     if not raw:
         obj = yaml.safe_load(obj)
 
@@ -32,3 +33,8 @@ def merge_job_parameters(repo, job):
         for k2, v2 in v.iteritems():
             params[k][k2] = v2
     return params
+
+
+def update_job_cache(db, name):
+    obj, sha1 = get_job(db, name)
+    db.set(KEY_JOB % name, json.dumps(obj))

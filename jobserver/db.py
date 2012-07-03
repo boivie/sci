@@ -24,6 +24,9 @@ AGENT_STATE_BUSY = "busy"
 # Session history for a certain slave
 KEY_AGENT_HISTORY = 'agent:history:%s'
 
+# The latest job as serialized json
+KEY_JOB = "job:%s"
+
 
 def conn():
     r = redis.StrictRedis(connection_pool=pool)

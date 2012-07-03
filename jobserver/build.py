@@ -1,8 +1,9 @@
 import json
 
+from flask import g
+
 from sci.utils import random_sha1
 from jobserver.utils import get_ts
-from jobserver.gitdb import config
 from jobserver.recipe import get_recipe_ref
 
 KEY_JOB_BUILDS = 'job:builds:%s'
@@ -30,11 +31,10 @@ RESULT_FAILED = 'failed'
 RESULT_ABORTED = 'aborted'
 
 
-def new_build(db, job, job_ref, parameters = {}, description = ''):
+def new_build(job, job_ref, parameters = {}, description = ''):
     recipe_ref = job.get('recipe_ref')
     if not recipe_ref:
-        repo = config()
-        recipe_ref = get_recipe_ref(repo, job['recipe'])
+        recipe_ref = get_recipe_ref(g.repo, job['recipe'])
 
     # Insert the build (first without build number, as we don't know it)
     build_id = 'B%s' % random_sha1()
@@ -51,18 +51,18 @@ def new_build(db, job, job_ref, parameters = {}, description = ''):
                  ss_token = get_ss_token(build_id),
                  parameters = json.dumps(parameters),
                  artifacts = json.dumps([]))
-    db.hmset(KEY_BUILD % build_id, build)
+    g.db.hmset(KEY_BUILD % build_id, build)
 
     # Create the main session
-    create_session(db, build_id)
+    create_session(g.db, build_id)
 
-    number = db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
+    number = g.db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
     values = {'number': number,
               'build_id': '%s-%d' % (job['name'], number)}
     build['number'] = values['number']
     build['build_id'] = values['build_id']
     build['uuid'] = build_id
-    db.hmset(KEY_BUILD % build_id, values)
+    g.db.hmset(KEY_BUILD % build_id, values)
     return build
 
 
@@ -130,26 +130,26 @@ def get_session(db, session_id):
     return session
 
 
-def set_session_done(db, session_id, result, output, log_file):
-    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_DONE,
-                                        'result': result,
-                                        'output': json.dumps(output),
-                                        'log_file': log_file,
-                                        'ended': get_ts()})
+def set_session_done(pipe, session_id, result, output, log_file):
+    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_DONE,
+                                          'result': result,
+                                          'output': json.dumps(output),
+                                          'log_file': log_file,
+                                          'ended': get_ts()})
 
 
-def set_session_queued(db, session_id):
-    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_QUEUED})
+def set_session_queued(pipe, session_id):
+    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_QUEUED})
 
 
-def set_session_to_agent(db, session_id, agent_id):
-    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_TO_AGENT,
-                                        'agent': agent_id})
+def set_session_to_agent(pipe, session_id, agent_id):
+    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_TO_AGENT,
+                                          'agent': agent_id})
 
 
-def set_session_running(db, session_id):
-    db.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_RUNNING,
-                                        'started': get_ts()})
+def set_session_running(pipe, session_id):
+    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_RUNNING,
+                                          'started': get_ts()})
 
 
 def get_session_labels(db, session_id):
