@@ -1,4 +1,7 @@
+from flask import g
 import yaml
+
+from jobserver.db import KEY_RECIPE, KEY_RECIPES
 
 
 def get_recipe_ref(repo, name, ref = None):
@@ -10,12 +13,14 @@ def get_recipe_ref(repo, name, ref = None):
 
 
 def get_recipe_contents(repo, name, ref = None):
-    ref = get_recipe_ref(repo, name, ref)
-    commit = repo.get_object(ref)
-    tree = repo.get_object(commit.tree)
-    mode, sha = tree['build.py']
-    data = repo.get_object(sha).data
-    return ref, data
+    dbref, data = g.db.hmget(KEY_RECIPE % name, 'sha1', 'contents')
+    if ref and dbref != ref:
+        dbref = get_recipe_ref(repo, name, ref)
+        commit = repo.get_object(dbref)
+        tree = repo.get_object(commit.tree)
+        mode, sha = tree['build.py']
+        data = repo.get_object(sha).data
+    return dbref, data
 
 
 def get_recipe_metadata_from_blob(contents):
@@ -55,3 +60,12 @@ def get_recipe_history(repo, name, limit = 20):
         except IndexError:
             break
     return entries
+
+
+def update_recipe_cache(db, name):
+    sha1, contents = get_recipe_contents(g.repo, name)
+    with db.pipeline() as pipe:
+        pipe.hset(KEY_RECIPE % name, 'contents', contents)
+        pipe.hset(KEY_RECIPE % name, 'sha1', sha1)
+        pipe.sadd(KEY_RECIPES, name)
+        pipe.execute()

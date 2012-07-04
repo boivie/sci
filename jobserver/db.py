@@ -24,8 +24,11 @@ AGENT_STATE_BUSY = "busy"
 # Session history for a certain slave
 KEY_AGENT_HISTORY = 'agent:history:%s'
 
-# The latest job as serialized json
-KEY_JOB = "job:%s"
+KEY_JOB = "job:%s"  # hash: 'yaml', 'sha1', 'success'
+KEY_JOBS = "jobs"
+
+KEY_RECIPE = 'recipe:%s'  # hash: 'contents', 'sha1'
+KEY_RECIPES = 'recipes'
 
 
 def conn():

@@ -1,10 +1,11 @@
 from flask import Blueprint, request, abort, jsonify, g
 
+from jobserver.db import KEY_RECIPES
 from jobserver.gitdb import create_commit, update_head
 from jobserver.gitdb import NoChangesException, CommitException
 from jobserver.recipe import get_recipe_metadata_from_blob
 from jobserver.recipe import get_recipe_metadata, get_recipe_contents
-from jobserver.recipe import get_recipe_history
+from jobserver.recipe import get_recipe_history, update_recipe_cache
 
 app = Blueprint('recipes', __name__)
 
@@ -12,11 +13,9 @@ app = Blueprint('recipes', __name__)
 @app.route('/', methods=['GET'])
 def list_recipes():
     recipes = []
-    for name in g.repo.refs.keys():
-        if not name.startswith('refs/heads/recipes/'):
-            continue
-        metadata = get_recipe_metadata(g.repo, name, g.repo.refs[name])
-        info = {'id': name[19:],
+    for name in sorted(g.db.smembers(KEY_RECIPES)):
+        metadata = get_recipe_metadata(g.repo, name)
+        info = {'id': name,
                 'description': metadata.get('Description', ''),
                 'tags': metadata.get('Tags', [])}
         recipes.append(info)
@@ -46,10 +45,12 @@ def do_post_recipe(name):
 
         try:
             update_head(g.repo, 'refs/heads/recipes/%s' % name, ref, commit.id)
-            return jsonify(ref = commit.id)
+            break
         except CommitException:
             if name != 'private':
                 abort(412, "Invalid Ref")
+    update_recipe_cache(g.db, name)
+    return jsonify(ref = commit.id)
 
 
 @app.route('/<name>.json', methods=['GET'])

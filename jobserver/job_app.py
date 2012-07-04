@@ -3,9 +3,10 @@ import types
 from flask import Blueprint, request, jsonify, abort, g
 import yaml
 
+from jobserver.db import KEY_JOB, KEY_JOBS
 from jobserver.gitdb import create_commit, update_head
 from jobserver.gitdb import NoChangesException, CommitException
-from jobserver.job import get_job, KEY_JOB, merge_job_parameters
+from jobserver.job import get_job, merge_job_parameters
 from jobserver.job import update_job_cache
 from jobserver.build import KEY_BUILD, KEY_JOB_BUILDS, KEY_SESSION
 
@@ -100,11 +101,8 @@ def do_get_job(query):
 @app.route('/', methods=['GET'])
 def list_jobs():
     jobs = []
-    for name in g.repo.refs.keys():
-        if not name.startswith('refs/heads/jobs/'):
-            continue
-        job_name = name[16:]
-        job, job_ref = get_job(g.db, job_name, g.repo.refs[name])
+    for job_name in g.db.smembers(KEY_JOBS):
+        job, job_ref = get_job(g.db, job_name)
         info = dict(id = job_name,
                     recipe = job['recipe'],
                     description = job.get('description', ''),
