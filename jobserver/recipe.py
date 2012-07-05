@@ -12,9 +12,9 @@ def get_recipe_ref(repo, name, ref = None):
     return repo.refs['refs/heads/recipes/%s' % name]
 
 
-def get_recipe_contents(repo, name, ref = None):
+def get_recipe_contents(repo, name, ref = None, use_cache = True):
     dbref, data = g.db.hmget(KEY_RECIPE % name, 'sha1', 'contents')
-    if ref and dbref != ref:
+    if not use_cache or dbref is None or (ref and dbref != ref):
         dbref = get_recipe_ref(repo, name, ref)
         commit = repo.get_object(dbref)
         tree = repo.get_object(commit.tree)
@@ -63,7 +63,7 @@ def get_recipe_history(repo, name, limit = 20):
 
 
 def update_recipe_cache(db, name):
-    sha1, contents = get_recipe_contents(g.repo, name)
+    sha1, contents = get_recipe_contents(g.repo, name, use_cache = False)
     with db.pipeline() as pipe:
         pipe.hset(KEY_RECIPE % name, 'contents', contents)
         pipe.hset(KEY_RECIPE % name, 'sha1', sha1)

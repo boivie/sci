@@ -4,9 +4,11 @@ from jobserver.recipe import get_recipe_metadata
 from jobserver.db import KEY_JOB, KEY_JOBS
 
 
-def get_job(db, name, ref = None, raw = False):
+def get_job(db, name, ref = None, raw = False, use_cache = True):
     yaml_str, dbref = db.hmget(KEY_JOB % name, ('yaml', 'sha1'))
-    if ref and ref != dbref:
+    if not use_cache or dbref is None or (ref and ref != dbref):
+        if not ref:
+            ref = g.repo.refs['refs/heads/jobs/%s' % name]
         commit = g.repo.get_object(ref)
         dbref = commit.id
         tree = g.repo.get_object(commit.tree)
@@ -34,7 +36,7 @@ def merge_job_parameters(repo, job):
 
 
 def update_job_cache(db, name):
-    raw, sha1 = get_job(db, name, raw = True)
+    raw, sha1 = get_job(db, name, raw = True, use_cache = False)
     with db.pipeline() as pipe:
         pipe.hset(KEY_JOB % name, 'yaml', raw)
         pipe.hset(KEY_JOB % name, 'sha1', sha1)
