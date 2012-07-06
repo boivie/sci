@@ -1,14 +1,17 @@
 from flask import g
 import yaml
 from jobserver.recipe import get_recipe_metadata
-from jobserver.db import KEY_JOB, KEY_JOBS
+from jobserver.db import KEY_JOB, KEY_JOBS, KEY_TAG
 
 
-def get_job(db, name, ref = None, raw = False, use_cache = True):
+def get_job(db, name, ref = None, raw = False):
     yaml_str, dbref = db.hmget(KEY_JOB % name, ('yaml', 'sha1'))
-    if not use_cache or dbref is None or (ref and ref != dbref):
+    if dbref is None or (ref and ref != dbref):
         if not ref:
-            ref = g.repo.refs['refs/heads/jobs/%s' % name]
+            try:
+                ref = g.repo.refs['refs/heads/jobs/%s' % name]
+            except KeyError:
+                return None, None
         commit = g.repo.get_object(ref)
         dbref = commit.id
         tree = g.repo.get_object(commit.tree)
@@ -35,10 +38,18 @@ def merge_job_parameters(repo, job):
     return params
 
 
-def update_job_cache(db, name):
-    raw, sha1 = get_job(db, name, raw = True, use_cache = False)
+def update_job_cache(db, name, sha1, contents, prev_contents):
+    prev_job = yaml.safe_load(prev_contents) if prev_contents else {}
+    cur_job = yaml.safe_load(contents)
+    prev_tags = set(prev_job.get('tags', []))
+    cur_tags = set(cur_job.get('tags', []))
+
     with db.pipeline() as pipe:
-        pipe.hset(KEY_JOB % name, 'yaml', raw)
+        for tag in prev_tags - cur_tags:
+            pipe.srem(KEY_TAG % tag, name)
+        for tag in cur_tags - prev_tags:
+            pipe.sadd(KEY_TAG % tag, name)
+        pipe.hset(KEY_JOB % name, 'yaml', contents)
         pipe.hset(KEY_JOB % name, 'sha1', sha1)
         pipe.sadd(KEY_JOBS, name)
         pipe.execute()

@@ -33,6 +33,9 @@ def put_job(name):
         job['tags'] = tags
     job['name'] = name
 
+    contents = yaml.safe_dump(job, default_flow_style = False)
+    prev_contents, prev_ref = get_job(g.db, name, raw = True)
+
     while True:
         old = request.json.get('old')
         if name == 'private':
@@ -40,7 +43,6 @@ def put_job(name):
                 old = g.repo.refs['refs/heads/jobs/private']
             except KeyError:
                 old = None
-        contents = yaml.safe_dump(job, default_flow_style = False)
         try:
             commit = create_commit(g.repo, [('job.yaml', 0100644, contents)],
                                    parent = old,
@@ -55,7 +57,7 @@ def put_job(name):
             if name != 'private':
                 abort(412, str(e))
 
-    update_job_cache(g.db, name)
+    update_job_cache(g.db, name, commit.id, contents, prev_contents)
     return jsonify(ref = commit.id)
 
 

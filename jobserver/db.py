@@ -30,6 +30,8 @@ KEY_JOBS = "jobs"
 KEY_RECIPE = 'recipe:%s'  # hash: 'contents', 'sha1'
 KEY_RECIPES = 'recipes'
 
+KEY_TAG = 'tag:%s'
+
 
 def conn():
     r = redis.StrictRedis(connection_pool=pool)
