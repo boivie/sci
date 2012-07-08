@@ -5,11 +5,13 @@ import json, logging, types
 from recipes import app as recipes_app
 from agents import app as agents_app
 from builds import app as builds_app
+from search import app as search_app
 
 app = Flask(__name__)
 app.register_blueprint(recipes_app, url_prefix='/recipes')
 app.register_blueprint(agents_app, url_prefix='/agents')
 app.register_blueprint(builds_app, url_prefix='/builds')
+app.register_blueprint(search_app, url_prefix='/search')
 
 
 @app.template_filter('json')
