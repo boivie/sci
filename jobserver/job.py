@@ -4,19 +4,22 @@ from jobserver.recipe import get_recipe_metadata
 from jobserver.db import KEY_JOB, KEY_JOBS, KEY_TAG
 
 
+def get_job_uncached(name, ref = None):
+    if not ref:
+        try:
+            ref = g.repo.refs['refs/heads/jobs/%s' % name]
+        except KeyError:
+            return None, None
+    commit = g.repo.get_object(ref)
+    tree = g.repo.get_object(commit.tree)
+    mode, sha = tree['job.yaml']
+    return g.repo.get_object(sha).data, commit.id
+
+
 def get_job(db, name, ref = None, raw = False):
     yaml_str, dbref = db.hmget(KEY_JOB % name, ('yaml', 'sha1'))
     if dbref is None or (ref and ref != dbref):
-        if not ref:
-            try:
-                ref = g.repo.refs['refs/heads/jobs/%s' % name]
-            except KeyError:
-                return None, None
-        commit = g.repo.get_object(ref)
-        dbref = commit.id
-        tree = g.repo.get_object(commit.tree)
-        mode, sha = tree['job.yaml']
-        yaml_str = g.repo.get_object(sha).data
+        yaml_str, dbref = get_job_uncached(name, ref)
 
     if raw:
         return yaml_str, dbref
@@ -39,6 +42,7 @@ def merge_job_parameters(repo, job):
 
 
 def update_job_cache(db, name, sha1, contents, prev_contents):
+    # TODO: Make this transactional using 'WATCH'
     prev_job = yaml.safe_load(prev_contents) if prev_contents else {}
     cur_job = yaml.safe_load(contents)
     prev_tags = set(prev_job.get('tags', []))
@@ -46,9 +50,9 @@ def update_job_cache(db, name, sha1, contents, prev_contents):
 
     with db.pipeline() as pipe:
         for tag in prev_tags - cur_tags:
-            pipe.srem(KEY_TAG % tag, name)
+            pipe.srem(KEY_TAG % tag, 'j' + name)
         for tag in cur_tags - prev_tags:
-            pipe.sadd(KEY_TAG % tag, name)
+            pipe.sadd(KEY_TAG % tag, 'j' + name)
         pipe.hset(KEY_JOB % name, 'yaml', contents)
         pipe.hset(KEY_JOB % name, 'sha1', sha1)
         pipe.sadd(KEY_JOBS, name)

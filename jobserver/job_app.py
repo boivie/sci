@@ -25,7 +25,7 @@ def put_job(name):
     job.pop('recipe_ref', None)
     if rref:
         job['recipe_ref'] = rref
-    tags = [t.strip() for t in job.get('tags', [])]
+    tags = [t.strip().lower() for t in job.get('tags', [])]
     if '' in tags:
         tags.remove('')
     job.pop('tags', None)

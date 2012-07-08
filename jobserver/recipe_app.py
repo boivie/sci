@@ -27,6 +27,9 @@ def do_post_recipe(name):
     contents = request.json['contents'].encode('utf-8')
     msg = request.json.get('commitmsg', '').encode('utf-8')
     msg = msg or "No message given"
+
+    prev_ref, prev_contents = get_recipe_contents(g.db, name)
+
     while True:
         ref = request.json.get('old')
         if name == 'private':
@@ -49,7 +52,7 @@ def do_post_recipe(name):
         except CommitException:
             if name != 'private':
                 abort(412, "Invalid Ref")
-    update_recipe_cache(g.db, name)
+    update_recipe_cache(g.db, name, commit.id, contents, prev_contents)
     return jsonify(ref = commit.id)
 
 
