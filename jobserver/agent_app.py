@@ -15,6 +15,7 @@ from jobserver.recipe import get_recipe_contents
 from jobserver.slog import add_slog
 from async.agent_available import AgentAvailable
 from async.dispatch_session import DispatchSession
+from jobserver.utils import chunks
 
 app = Blueprint('agents', __name__)
 
@@ -177,15 +178,11 @@ def get_session_info(session_id):
 
 @app.route('/list')
 def list_agents():
-    all = []
-    for agent_id in g.db.smembers(jdb.KEY_ALL):
-        info = g.db.hgetall(jdb.KEY_AGENT % agent_id)
-        if info:
-            all.append({'id': agent_id,
-                        'nick': info.get('nick', ''),
-                        "state": info["state"],
-                        "seen": int(info["seen"]),
-                        "labels": info["labels"].split(",")})
+    fields = ('#', 'agent:info:*->nick', 'agent:info:*->state',
+              'agent:info:*->seen', 'agent:info:*->labels')
+    all = [{'id': d[0], 'nick': d[1], 'state': d[2], 'seen': int(d[3]),
+            'labels': [t for t in d[4].split(',') if t]}
+            for d in chunks(g.db.sort(jdb.KEY_ALL, get=fields), 5)]
     return jsonify(agent_no = len(all),
                    agents = all)
 
