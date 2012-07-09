@@ -4,22 +4,20 @@ from jobserver.db import KEY_RECIPES
 from jobserver.gitdb import create_commit, update_head
 from jobserver.gitdb import NoChangesException, CommitException
 from jobserver.recipe import get_recipe_metadata_from_blob
-from jobserver.recipe import get_recipe_metadata, get_recipe_contents
+from jobserver.recipe import get_recipe_contents
 from jobserver.recipe import get_recipe_history, update_recipe_cache
+from jobserver.utils import chunks
 
 app = Blueprint('recipes', __name__)
 
 
 @app.route('/', methods=['GET'])
 def list_recipes():
-    recipes = []
-    for name in sorted(g.db.smembers(KEY_RECIPES)):
-        metadata = get_recipe_metadata(g.repo, name)
-        info = {'id': name,
-                'description': metadata.get('Description', ''),
-                'tags': metadata.get('Tags', [])}
-        recipes.append(info)
-    return jsonify(recipes = recipes)
+    fields = ('#', 'recipe:*->tags', 'recipe:*->description')
+    rows = [{'id': d[0], 'description': d[2],
+             'tags': [t for t in d[1].split(',') if t]}
+            for d in chunks(g.db.sort(KEY_RECIPES, get=fields), 3)]
+    return jsonify(recipes = rows)
 
 
 @app.route('/<name>.json', methods=['POST'])

@@ -54,6 +54,10 @@ def update_job_cache(db, name, sha1, contents, prev_contents):
         for tag in cur_tags - prev_tags:
             pipe.sadd(KEY_TAG % tag, 'j' + name)
         pipe.hset(KEY_JOB % name, 'yaml', contents)
+        pipe.hset(KEY_JOB % name, 'description',
+                  cur_job.get('description', ''))
+        pipe.hset(KEY_JOB % name, 'tags',
+                  ",".join(cur_job.get('tags', '')))
         pipe.hset(KEY_JOB % name, 'sha1', sha1)
         pipe.sadd(KEY_JOBS, name)
         pipe.execute()

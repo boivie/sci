@@ -9,6 +9,7 @@ from jobserver.gitdb import NoChangesException, CommitException
 from jobserver.job import get_job, merge_job_parameters
 from jobserver.job import update_job_cache
 from jobserver.build import KEY_BUILD, KEY_JOB_BUILDS, KEY_SESSION
+from jobserver.utils import chunks
 
 app = Blueprint('job', __name__)
 
@@ -102,12 +103,8 @@ def do_get_job(query):
 
 @app.route('/', methods=['GET'])
 def list_jobs():
-    jobs = []
-    for job_name in g.db.smembers(KEY_JOBS):
-        job, job_ref = get_job(g.db, job_name)
-        info = dict(id = job_name,
-                    recipe = job['recipe'],
-                    description = job.get('description', ''),
-                    tags = job.get('tags', []))
-        jobs.append(info)
+    fields = ('#', 'job:*->tags', 'job:*->description')
+    jobs = [{'id': d[0], 'description': d[2],
+             'tags': [t for t in d[1].split(',') if t]}
+            for d in chunks(g.db.sort(KEY_JOBS, get=fields), 3)]
     return jsonify(jobs = jobs)

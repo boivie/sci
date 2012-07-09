@@ -30,6 +30,10 @@ def rebuild_caches():
             for tag in job.get('tags', []):
                 pipe.sadd(KEY_TAG % tag, 'j' + name)
             pipe.hset(KEY_JOB % name, 'yaml', yaml_str)
+            pipe.hset(KEY_JOB % name, 'description',
+                      job.get('description', ''))
+            pipe.hset(KEY_JOB % name, 'tags',
+                      ",".join(job.get('tags', '')))
             pipe.hset(KEY_JOB % name, 'sha1', dbref)
             pipe.sadd(KEY_JOBS, name)
 
@@ -41,6 +45,10 @@ def rebuild_caches():
             for tag in meta.get('Tags', []):
                 pipe.sadd(KEY_TAG % tag, 'r' + name)
             pipe.hset(KEY_RECIPE % name, 'contents', contents)
+            pipe.hset(KEY_RECIPE % name, 'description',
+                      meta.get('Description', ''))
+            pipe.hset(KEY_RECIPE % name, 'tags',
+                      ",".join(meta.get('Tags', '')))
             pipe.hset(KEY_RECIPE % name, 'sha1', dbref)
             pipe.sadd(KEY_RECIPES, name)
 

@@ -79,6 +79,10 @@ def update_recipe_cache(db, name, ref, contents, prev_contents):
         for tag in cur_tags - prev_tags:
             pipe.sadd(KEY_TAG % tag, 'r' + name)
         pipe.hset(KEY_RECIPE % name, 'contents', contents)
+        pipe.hset(KEY_RECIPE % name, 'description',
+                  cur_meta.get('Description', ''))
+        pipe.hset(KEY_RECIPE % name, 'tags',
+                  ",".join(cur_meta.get('Tags', '')))
         pipe.hset(KEY_RECIPE % name, 'sha1', ref)
         pipe.sadd(KEY_RECIPES, name)
         pipe.execute()
