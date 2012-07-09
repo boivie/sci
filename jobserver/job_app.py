@@ -76,23 +76,23 @@ def do_get_job(query):
     else:
         results['settings'], results['ref'] = get_job(g.db, name, ref)
     success_bid = g.db.hget(KEY_JOB % name, 'success')
+    blen = g.db.llen(KEY_JOB_BUILDS % name)
     if success_bid:
         success_no = g.db.hget(KEY_BUILD % success_bid, 'number')
         results['success_no'] = int(success_no)
-        results['latest_no'] = g.db.llen(KEY_JOB_BUILDS % name)
+        results['latest_no'] = blen
     # Fetch information about the latest 10 builds
     history = []
-    build_keys = ('number', 'created', 'description', 'build_id')
     session_keys = ('state', 'result')
-    for build_id in g.db.lrange(KEY_JOB_BUILDS % name, -30, -1):
-        number, created, description, bid = \
-            g.db.hmget(KEY_BUILD % build_id, build_keys)
-        session_id = build_id + '-0'
+    fields = ('#', 'build:*->number', 'build:*->created',
+              'build:*->description', 'build:*->build_id')
+    for d in chunks(g.db.sort(KEY_JOB_BUILDS % name, start = blen - 10,
+                              num = 10, by='nosort', get=fields), 5):
+        session_id = d[0] + '-0'
         state, result = g.db.hmget(KEY_SESSION % session_id, session_keys)
-
-        history.append(dict(number = number, created = created,
-                            description = description,
-                            build_id = bid or None,
+        history.append(dict(number = int(d[1]), created = d[2],
+                            description = d[3],
+                            build_id = d[4] or None,
                             state = state, result = result))
     history.reverse()
 
