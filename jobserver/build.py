@@ -5,6 +5,7 @@ from flask import g
 from sci.utils import random_sha1
 from jobserver.utils import get_ts
 from jobserver.recipe import get_recipe_ref
+from jobserver.db import BUILD_HISTORY
 
 KEY_JOB_BUILDS = 'job:builds:%s'
 KEY_BUILD = 'build:%s'
@@ -29,6 +30,8 @@ RESULT_UNKNOWN = 'unknown'
 RESULT_SUCCESS = 'success'
 RESULT_FAILED = 'failed'
 RESULT_ABORTED = 'aborted'
+
+BUILD_HISTORY_LIMIT = 100
 
 
 def new_build(job, job_ref, parameters = {}, description = ''):
@@ -134,6 +137,11 @@ def get_session(db, session_id):
     return session
 
 
+def add_done_build(pipe, build_id):
+    pipe.lpush(BUILD_HISTORY, build_id)
+    pipe.ltrim(BUILD_HISTORY, 0, BUILD_HISTORY_LIMIT - 1)
+
+
 def set_session_done(pipe, session_id, result, output, log_file):
     pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_DONE,
                                           'result': result,
@@ -144,6 +152,7 @@ def set_session_done(pipe, session_id, result, output, log_file):
     if int(num) == 0:
         pipe.hmset(KEY_BUILD % build_id, {'state': SESSION_STATE_DONE,
                                           'result': result})
+        add_done_build(pipe, build_id)
 
 
 def set_session_queued(pipe, session_id):

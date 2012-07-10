@@ -32,6 +32,8 @@ KEY_RECIPES = 'recipes'
 
 KEY_TAG = 'tag:%s'
 
+BUILD_HISTORY = 'build-history'
+
 
 def conn():
     r = redis.StrictRedis(connection_pool=pool)
