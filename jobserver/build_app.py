@@ -33,9 +33,10 @@ def do_start_build(job_name):
     build = new_build(job, job_ref,
                       parameters = input.get('parameters', {}),
                       description = input.get('description', ''))
-    set_session_queued(g.db, build['session_id'])
+    session_id = '%s-0' % build['uuid']
+    set_session_queued(g.db, session_id)
     r = ResQ()
-    r.enqueue(DispatchSession, build['session_id'])
+    r.enqueue(DispatchSession, session_id)
     return jsonify(**build)
 
 

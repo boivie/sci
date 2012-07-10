@@ -51,7 +51,6 @@ def new_build(job, job_ref, parameters = {}, description = ''):
                  build_id = '',
                  description = description,
                  created = get_ts(),
-                 session_id = '%s-0' % build_id,
                  next_sess_id = 0,  # will be incremented to 1 below
                  ss_token = get_ss_token(build_id),
                  parameters = json.dumps(parameters),
