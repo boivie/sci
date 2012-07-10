@@ -83,17 +83,15 @@ def do_get_job(query):
         results['latest_no'] = blen
     # Fetch information about the latest 10 builds
     history = []
-    session_keys = ('state', 'result')
     fields = ('#', 'build:*->number', 'build:*->created',
-              'build:*->description', 'build:*->build_id')
+              'build:*->description', 'build:*->build_id',
+              'build:*->state', 'build:*->result')
     for d in chunks(g.db.sort(KEY_JOB_BUILDS % name, start = blen - 10,
-                              num = 10, by='nosort', get=fields), 5):
-        session_id = d[0] + '-0'
-        state, result = g.db.hmget(KEY_SESSION % session_id, session_keys)
+                              num = 10, by='nosort', get=fields), 7):
         history.append(dict(number = int(d[1]), created = d[2],
                             description = d[3],
                             build_id = d[4] or None,
-                            state = state, result = result))
+                            state = d[5], result = d[6]))
     history.reverse()
 
     params = merge_job_parameters(g.repo, results['settings'])

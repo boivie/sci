@@ -38,6 +38,8 @@ def new_build(job, job_ref, parameters = {}, description = ''):
 
     # Insert the build (first without build number, as we don't know it)
     build_id = 'B%s' % random_sha1()
+    # The 'state' and 'result' are the same as session-0's, but we keep them
+    # here to be able to do smarter queries.
     build = dict(job_name = job['name'],
                  job_ref = job_ref,
                  recipe = job['recipe'],
@@ -50,7 +52,9 @@ def new_build(job, job_ref, parameters = {}, description = ''):
                  next_sess_id = 0,  # will be incremented to 1 below
                  ss_token = get_ss_token(build_id),
                  parameters = json.dumps(parameters),
-                 artifacts = json.dumps([]))
+                 artifacts = json.dumps([]),
+                 state = SESSION_STATE_NEW,
+                 result = RESULT_UNKNOWN)
     g.db.hmset(KEY_BUILD % build_id, build)
 
     # Create the main session
@@ -136,6 +140,10 @@ def set_session_done(pipe, session_id, result, output, log_file):
                                           'output': json.dumps(output),
                                           'log_file': log_file,
                                           'ended': get_ts()})
+    build_id, num = session_id.split('-')
+    if int(num) == 0:
+        pipe.hmset(KEY_BUILD % build_id, {'state': SESSION_STATE_DONE,
+                                          'result': result})
 
 
 def set_session_queued(pipe, session_id):
