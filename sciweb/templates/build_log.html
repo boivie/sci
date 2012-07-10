@@ -50,8 +50,8 @@
 {% block pagetitle %}{{name}} #{{build.number}} - {{build.build_id}}{% endblock %}
 {% block subcontents %}
 <div class="row">
-  <div class="span12">
-    <h3>Log</h3>
+  <div class="span8">
+    <h3>Events</h3>
     <table class="log table table-condensed table-striped">
       <tbody>
 {% for entry in log if entry.s == 0 %}
@@ -59,6 +59,14 @@
 {% endfor %}
       </tbody>
     </table>
+  </div>
+  <div class="span4">
+    <h3>Log Files</h3>
+    <ul>
+{% for session in sessions %}
+      <li><a href="{{session.log_file}}">{{session.title}}</a></li>
+{% endfor %}
+    </ul>
   </div>
 </div>
 {% endblock %}

@@ -192,6 +192,7 @@ def show_log(id, build_no):
     return render_template('build_log.html',
                            id = id,
                            build = info['build'],
+                           sessions = info['sessions'],
                            job = job,
                            log = log)
 
