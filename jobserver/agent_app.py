@@ -8,7 +8,7 @@ from jobserver.utils import get_ts
 import jobserver.db as jdb
 from jobserver.build import create_session, get_session, get_build_info
 from jobserver.build import set_session_done, set_session_running
-from jobserver.build import get_session_title
+from jobserver.build import get_session_title, set_build_done
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
 from jobserver.job import get_job, merge_job_parameters
 from jobserver.recipe import get_recipe_contents
@@ -84,9 +84,13 @@ def do_register():
 @app.route('/available/<agent_id>', methods=['POST'])
 def check_in_available(agent_id):
     session_id = request.json['session_id']
+    build_id, num = session_id.split('-')
     with g.db.pipeline() as pipe:
         set_session_done(pipe, session_id, request.json['result'],
                          request.json['output'], request.json['log_file'])
+        if int(num) == 0:
+            set_build_done(pipe, build_id, request.json['result'])
+
         add_slog(pipe, session_id, SessionDone(request.json['result']))
 
         pipe.hmset(jdb.KEY_AGENT % agent_id, dict(state = jdb.AGENT_STATE_AVAIL,
@@ -127,8 +131,10 @@ def dispatch():
                                 run_info = input['run_info'],
                                 state = SESSION_STATE_TO_BACKEND)
     session_id = '%s-%s' % (input['build_id'], session_no)
-    session = dict(run_info = input['run_info'])
-    item = RunAsync(session_no, get_session_title(session))
+    ri = input['run_info'] or {}
+    args = ", ".join(ri.get('args', []))
+    title = "%s(%s)" % (ri.get('step_name', 'main'), args)
+    item = RunAsync(session_no, title)
     add_slog(g.db, input['parent'], item)
     r = ResQ()
     r.enqueue(DispatchSession, session_id)

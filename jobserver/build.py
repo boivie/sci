@@ -100,7 +100,12 @@ def get_build_info(db, build_id):
 
 def create_session(db, build_id, parent = None, labels = [],
                    run_info = None, state = SESSION_STATE_NEW):
+    ri = run_info or {}
+    args = ", ".join(ri.get('args', []))
+    title = "%s(%s)" % (ri.get('step_name', 'main'), args)
+
     session = dict(state = state,
+                   title = title,
                    result = RESULT_UNKNOWN,
                    parent = parent,
                    labels = ",".join(labels),
@@ -117,10 +122,7 @@ def create_session(db, build_id, parent = None, labels = [],
 
 
 def get_session_title(session):
-    ri = session['run_info'] or {}
-    args = ", ".join(ri.get('args', []))
-    title = "%s(%s)" % (ri.get('step_name', 'main'), args)
-    return title
+    return session.get('title', '')
 
 
 def get_session(db, session_id):
@@ -129,14 +131,18 @@ def get_session(db, session_id):
         return None
     session['labels'] = set(session['labels'].split(','))
     session['labels'].remove('')  # if labels is empty
-    session['run_info'] = json.loads(session['run_info'])
+    session['run_info'] = json.loads(session.get('run_info', '{}'))
     session['output'] = json.loads(session['output'])
     session['started'] = int(session.get('started', '0'))
     session['ended'] = int(session.get('ended', '0'))
     return session
 
 
-def add_done_build(pipe, build_id):
+def set_build_done(pipe, build_id, result):
+    pipe.hmset(KEY_BUILD % build_id, {'state': SESSION_STATE_DONE,
+                                      'result': result})
+    # TODO: Clean the sessions, builds and such?
+    # Add to build history
     pipe.lpush(BUILD_HISTORY, build_id)
     pipe.ltrim(BUILD_HISTORY, 0, BUILD_HISTORY_LIMIT - 1)
 
@@ -147,11 +153,6 @@ def set_session_done(pipe, session_id, result, output, log_file):
                                           'output': json.dumps(output),
                                           'log_file': log_file,
                                           'ended': get_ts()})
-    build_id, num = session_id.split('-')
-    if int(num) == 0:
-        pipe.hmset(KEY_BUILD % build_id, {'state': SESSION_STATE_DONE,
-                                          'result': result})
-        add_done_build(pipe, build_id)
 
 
 def set_session_queued(pipe, session_id):
