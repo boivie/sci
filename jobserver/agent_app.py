@@ -10,7 +10,7 @@ from jobserver.build import create_session, get_session, get_build_info
 from jobserver.build import set_session_done, set_session_running
 from jobserver.build import get_session_title, set_build_done
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
-from jobserver.job import get_job, merge_job_parameters
+from jobserver.job import Job
 from jobserver.recipe import get_recipe_contents
 from jobserver.slog import add_slog
 from async.agent_available import AgentAvailable
@@ -160,12 +160,12 @@ def get_session_info(session_id):
     build = get_build_info(g.db, build_uuid)
     ref, recipe = get_recipe_contents(g.repo, build['recipe'],
                                       build.get('recipe_ref'))
-    job, ref = get_job(g.db, build['job_name'], build.get('job_ref'))
+    job = Job.load(build['job_name'], build.get('job_ref'))
 
     # Calculate the actual parameters - setting defaults if static value.
     # (parameters that have a function as default value will have them
     #  called just before starting the job)
-    param_def = merge_job_parameters(g.repo, job)
+    param_def = job.get_merged_params()
     parameters = build['parameters']
 
     for name in param_def:

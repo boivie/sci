@@ -4,7 +4,7 @@ from pyres import ResQ
 
 from jobserver.slog import KEY_SLOG
 from jobserver.db import KEY_AGENT, BUILD_HISTORY
-from jobserver.job import get_job
+from jobserver.job import Job
 from jobserver.build import new_build, get_build_info, set_session_running
 from jobserver.build import set_session_done, get_session, get_session_title
 from jobserver.build import KEY_JOB_BUILDS, set_session_queued, SESSION_STATE_DONE
@@ -18,8 +18,8 @@ app = Blueprint('build', __name__)
 def do_create_build(job_name):
     input = request.json
 
-    job, job_ref = get_job(g.db, job_name, input.get('job_ref'))
-    build = new_build(job, job_ref,
+    job = Job.load(job_name, input.get('job_ref'))
+    build = new_build(job,
                       parameters = input.get('parameters', {}),
                       description = input.get('description', ''))
 
@@ -30,8 +30,8 @@ def do_create_build(job_name):
 def do_start_build(job_name):
     input = request.json
 
-    job, job_ref = get_job(g.db, job_name, input.get('job_ref'))
-    build = new_build(job, job_ref,
+    job = Job.load(job_name, input.get('job_ref'))
+    build = new_build(job,
                       parameters = input.get('parameters', {}),
                       description = input.get('description', ''))
     session_id = '%s-0' % build['uuid']

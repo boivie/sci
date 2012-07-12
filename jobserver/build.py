@@ -34,18 +34,18 @@ RESULT_ABORTED = 'aborted'
 BUILD_HISTORY_LIMIT = 100
 
 
-def new_build(job, job_ref, parameters = {}, description = ''):
-    recipe_ref = job.get('recipe_ref')
+def new_build(job, parameters = {}, description = ''):
+    recipe_ref = job.recipe_ref
     if not recipe_ref:
-        recipe_ref = get_recipe_ref(g.repo, job['recipe'])
+        recipe_ref = get_recipe_ref(g.repo, job.recipe)
 
     # Insert the build (first without build number, as we don't know it)
     build_id = 'B%s' % random_sha1()
     # The 'state' and 'result' are the same as session-0's, but we keep them
     # here to be able to do smarter queries.
-    build = dict(job_name = job['name'],
-                 job_ref = job_ref,
-                 recipe = job['recipe'],
+    build = dict(job_name = job.name,
+                 job_ref = job.ref,
+                 recipe = job.recipe,
                  recipe_ref = recipe_ref,
                  number = 0,
                  build_id = '',
@@ -62,9 +62,9 @@ def new_build(job, job_ref, parameters = {}, description = ''):
     # Create the main session
     create_session(g.db, build_id)
 
-    number = g.db.rpush(KEY_JOB_BUILDS % job['name'], build_id)
+    number = g.db.rpush(KEY_JOB_BUILDS % job.name, build_id)
     values = {'number': number,
-              'build_id': '%s-%d' % (job['name'], number)}
+              'build_id': '%s-%d' % (job.name, number)}
     build['number'] = values['number']
     build['build_id'] = values['build_id']
     build['uuid'] = build_id

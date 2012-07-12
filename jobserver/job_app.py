@@ -1,102 +1,70 @@
-import types
-
 from flask import Blueprint, request, jsonify, abort, g
-import yaml
 
-from jobserver.db import KEY_JOB, KEY_JOBS
-from jobserver.gitdb import create_commit, update_head
-from jobserver.gitdb import NoChangesException, CommitException
-from jobserver.job import get_job, merge_job_parameters
-from jobserver.job import update_job_cache
-from jobserver.build import KEY_BUILD, KEY_JOB_BUILDS, KEY_SESSION
+from jobserver.db import KEY_JOBS
+from jobserver.build import KEY_JOB_BUILDS
+from jobserver.job import Job, JobNotFound, JobNotCurrent
 from jobserver.utils import chunks
 
 app = Blueprint('job', __name__)
 
 
-@app.route('/<name>', methods=['POST'])
-def put_job(name):
-    job = request.json['contents']
-    if type(job) is not types.DictType:
-        job = yaml.safe_load(job)
-
-    # Clean the job a bit.
-    job['recipe'] = job['recipe'].strip()
-    rref = job.get('recipe_ref', '').strip()
-    job.pop('recipe_ref', None)
-    if rref:
-        job['recipe_ref'] = rref
-    tags = [t.strip().lower() for t in job.get('tags', [])]
-    if '' in tags:
-        tags.remove('')
-    job.pop('tags', None)
-    if tags:
-        job['tags'] = tags
-    job['name'] = name
-
-    contents = yaml.safe_dump(job, default_flow_style = False)
-    prev_contents, prev_ref = get_job(g.db, name, raw = True)
-
-    while True:
-        old = request.json.get('old')
-        if name == 'private':
-            try:
-                old = g.repo.refs['refs/heads/jobs/private']
-            except KeyError:
-                old = None
-        try:
-            commit = create_commit(g.repo, [('job.yaml', 0100644, contents)],
-                                   parent = old,
-                                   message = "Updated Job")
-        except NoChangesException:
-            return jsonify(ref = old)
-
-        try:
-            update_head(g.repo, 'refs/heads/jobs/%s' % name, old, commit.id)
-            break
-        except CommitException as e:
-            if name != 'private':
-                abort(412, str(e))
-
-    update_job_cache(g.db, name, commit.id, contents, prev_contents)
-    return jsonify(ref = commit.id)
+@app.route('/<name>/create', methods=['POST'])
+def create_job(name):
+    job = Job.parse("recipe: %s" % request.json.get('recipe'))
+    try:
+        job.save()
+    except JobNotCurrent:
+        print("Job already exists!")
+        abort(412)
+    return jsonify(ref = job.ref)
 
 
-@app.route('/<query>', methods=['GET'])
-def do_get_job(query):
-    results = {}
-    parts = query.split(',')
-    name = parts[0]
-    ref = None
-    if '@' in name:
-        name, ref = name.split('@')
-    if request.args.get('show') == 'raw':
-        results['settings'], results['ref'] = get_job(g.db, name, ref, True)
-        return jsonify(**results)
-    else:
-        results['settings'], results['ref'] = get_job(g.db, name, ref)
-    success_bid = g.db.hget(KEY_JOB % name, 'success')
-    blen = g.db.llen(KEY_JOB_BUILDS % name)
-    if success_bid:
-        success_no = g.db.hget(KEY_BUILD % success_bid, 'number')
-        results['success_no'] = int(success_no)
-        results['latest_no'] = blen
-    # Fetch information about the latest 10 builds
+@app.route('/<name>/raw', methods=['POST'])
+def put_job_raw(name):
+    raw = request.json['yaml']
+    job = Job.parse(name, raw)
+    try:
+        job.save(prev_ref = request.json.get('old'))
+    except JobNotCurrent:
+        abort(412)
+    return jsonify(ref = job.ref)
+
+
+@app.route('/<name>', methods=['GET'])
+def get_job(name):
+    try:
+        job = Job.load(name, ref = request.args.get('ref'))
+    except JobNotFound:
+        abort(404)
+    blen = job.latest_build
+
     history = []
-    fields = ('#', 'build:*->number', 'build:*->created',
-              'build:*->description', 'build:*->build_id',
-              'build:*->state', 'build:*->result')
-    for d in chunks(g.db.sort(KEY_JOB_BUILDS % name, start = blen - 10,
-                              num = 10, by='nosort', get=fields), 7):
-        history.append(dict(number = int(d[1]), created = d[2],
-                            description = d[3],
-                            build_id = d[4] or None,
-                            state = d[5], result = d[6]))
-    history.reverse()
+    if request.args.get('history'):
+        fields = ('#', 'build:*->number', 'build:*->created',
+                  'build:*->description', 'build:*->build_id',
+                  'build:*->state', 'build:*->result')
+        for d in chunks(g.db.sort(KEY_JOB_BUILDS % name, start = blen - 10,
+                                  num = 10, by='nosort', get=fields), 7):
+            history.append(dict(number = int(d[1]), created = d[2],
+                                description = d[3],
+                                build_id = d[4] or None,
+                                state = d[5], result = d[6]))
+        history.reverse()
 
-    params = merge_job_parameters(g.repo, results['settings'])
-    # Add recipe metadata to build a parameter list
-    return jsonify(history = history, parameters = params, **results)
+    yaml_str = job.yaml if request.args.get('yaml') else None
+
+    return jsonify(name = job.name,
+                   ref = job.ref,
+                   recipe = job.recipe,
+                   recipe_ref = job.recipe_ref,
+                   description = job.description,
+                   tags = job.tags,
+                   success_no = job.last_success,
+                   latest_no = blen,
+                   history = history,
+                   parameters = job.parameters,
+                   merged_params = job.get_merged_params(),
+                   yaml = yaml_str)
 
 
 @app.route('/', methods=['GET'])

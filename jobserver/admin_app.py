@@ -3,7 +3,7 @@ import yaml
 
 from jobserver.db import KEY_RECIPES, KEY_JOBS, KEY_TAG
 from jobserver.db import KEY_JOB, KEY_RECIPE
-from jobserver.job import get_job_uncached
+from jobserver.job import Job
 from jobserver.recipe import get_recipe_uncached
 from jobserver.recipe import get_recipe_metadata_from_blob
 
@@ -25,7 +25,7 @@ def rebuild_caches():
         jobs = [r[16:] for r in g.repo.refs.keys()
                 if r.startswith('refs/heads/jobs')]
         for name in jobs:
-            yaml_str, dbref = get_job_uncached(name)
+            yaml_str, dbref = Job._get_from_archive(name)
             job = yaml.safe_load(yaml_str)
             for tag in job.get('tags', []):
                 pipe.sadd(KEY_TAG % tag, 'j' + name)
