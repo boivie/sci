@@ -3,11 +3,12 @@ from flask import Blueprint, request, abort, jsonify, g
 from pyres import ResQ
 
 from jobserver.slog import KEY_SLOG
-from jobserver.db import KEY_AGENT
+from jobserver.db import KEY_AGENT, BUILD_HISTORY
 from jobserver.job import get_job
 from jobserver.build import new_build, get_build_info, set_session_running
 from jobserver.build import set_session_done, get_session, get_session_title
-from jobserver.build import KEY_JOB_BUILDS, set_session_queued
+from jobserver.build import KEY_JOB_BUILDS, set_session_queued, SESSION_STATE_DONE
+from jobserver.utils import chunks
 from async.dispatch_session import DispatchSession
 
 app = Blueprint('build', __name__)
@@ -97,3 +98,19 @@ def get_build2(job_name, number):
     return jsonify(build = build,
                    log = log,
                    sessions = sessions)
+
+
+@app.route('/recent/done', methods=['GET'])
+def get_recent_done():
+    recent = []
+    fields = ('#', 'build:*->number', 'build:*->created',
+              'build:*->description', 'build:*->build_id',
+              'build:*->result', 'build:*->job_name')
+    for d in chunks(g.db.sort(BUILD_HISTORY, start = 0, num = 10,
+                              by='nosort', get=fields), 7):
+        recent.append(dict(number = int(d[1]), created = d[2],
+                           description = d[3],
+                           job = d[6],
+                           build_id = d[4] or None,
+                           state = SESSION_STATE_DONE, result = d[5]))
+    return jsonify(recent = recent)
