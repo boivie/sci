@@ -1,13 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Index{% endblock %}
+{% block title %}SCI{% endblock %}
+{% block lead %}Welcome to SCI{% endblock %}
+{% set active_page = "home" %}
+{% macro ritem(r, icon, text) %}
+  <div class="recent-item">
+    <i style="display: block; float:left" class="{{icon}}"></i>
+    <div style="display: table-cell">
+      <a href="{{url_for('builds.show_build', id=r.job, build_no=r.number)}}">{{r.build_id}}</a> - {{r.description}}
+      <br/>
+      {{text}} {{r.created|pretty_date}}.
+    </div>
+  </div>
+{% endmacro %}
 {% block content %}
-    <h1>Index</h1>
-    <p class="important">
-      Welcome on my awesome homepage.
-    </p>
-    <code>
-      asdfasdf
-      asdfasdf
-      asdfasdfs
-    </code>
+<h3>Recent Builds</h3>
+<div id="recent-list">
+{% for r in recent %}
+{% if r.result == "success" %}
+{{ ritem(r, 'icon-ok', "Finished successfully") }}
+{% elif r.result == "failed" %}
+{{ ritem(r, 'icon-remove', "Finished with errors") }}
+{% elif r.result == "error" %}
+{{ ritem(r, 'icon-remove', "Terminated with errors") }}
+{% elif r.result == 'aborted' %}
+{{ ritem(r, 'icon-remove', "was aborted") }}
+{% endif %}
+{% endfor %}
+</div>
 {% endblock %}

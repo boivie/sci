@@ -1,17 +1,22 @@
 from datetime import datetime
 
-from flask import Flask, redirect, url_for
+from flask import Flask, render_template
 import json, logging, types
 from recipes import app as recipes_app
 from agents import app as agents_app
 from builds import app as builds_app
 from search import app as search_app
+from sci.http_client import HttpClient
 
 app = Flask(__name__)
 app.register_blueprint(recipes_app, url_prefix='/recipes')
 app.register_blueprint(agents_app, url_prefix='/agents')
 app.register_blueprint(builds_app, url_prefix='/builds')
 app.register_blueprint(search_app, url_prefix='/search')
+
+
+def js():
+    return HttpClient('http://' + app.config['JS_SERVER_NAME'])
 
 
 @app.template_filter('json')
@@ -97,7 +102,7 @@ def pretty_date(time=False):
         if second_diff < 86400:
             return str(second_diff / 3600) + " hours ago"
     if day_diff == 1:
-        return "Yesterday"
+        return "yesterday"
     if day_diff < 7:
         return str(day_diff) + " days ago"
     if day_diff < 31:
@@ -119,4 +124,6 @@ def after_request(resp):
 
 @app.route("/", methods = ["GET"])
 def index():
-    return redirect(url_for('builds.index'))
+    recent = js().call("/build/recent/done")['recent']
+    return render_template("index.html",
+                           recent = recent)
