@@ -1,5 +1,7 @@
 from flask import Blueprint, render_template, url_for, request, redirect, abort
 from flask import current_app
+import yaml
+
 from sci.http_client import HttpClient, HttpError
 
 app = Blueprint('builds', __name__, template_folder='templates')
@@ -13,20 +15,21 @@ def js():
 def edit(id):
     old = request.form['ref']
     # Only manipulate the fields we can change in the UI
-    info = js().call('/job/%s@%s' % (id, old))
-    info['settings']['description'] = request.form['description']
-    info['settings']['recipe'] = request.form['recipe']
-    info['settings']['recipe_ref'] = request.form.get('recipe_ref', '')
-    info['settings']['tags'] = request.form['tags'].split(',')
+    info = js().call('/job/%s' % id, old = old, yaml=1)
+    job = yaml.safe_load(info['yaml'])
+    job['description'] = request.form['description']
+    job['recipe'] = request.form['recipe']
+    job['recipe_ref'] = request.form.get('recipe_ref', '')
+    job['tags'] = request.form['tags'].split(',')
     params = {}
     for name in [n for n in request.form.keys() if n.startswith("param_")]:
         pname = name[6:]
         params[pname] = {'default': request.form[name],
                          'required': False}
-    info['settings']['parameters'] = params
+    job['parameters'] = params
     try:
-        js().call('/job/%s' % id,
-                  input = dict(contents = info['settings'],
+        js().call('/job/%s/raw' % id,
+                  input = dict(yaml = yaml.safe_dump(job),
                                old = old))
     except HttpError as e:
         if e.code != 412:
@@ -40,8 +43,8 @@ def edit(id):
 @app.route('/<id>/raw_edit', methods = ['POST'])
 def raw_edit(id):
     try:
-        js().call('/job/%s' % id,
-                  input = dict(contents = request.form['contents'],
+        js().call('/job/%s/raw' % id,
+                  input = dict(yaml = request.form['yaml'],
                                old = request.form['ref']))
     except HttpError as e:
         if e.code != 412:
@@ -54,18 +57,18 @@ def raw_edit(id):
 
 @app.route('/<id>/raw_edit', methods = ['GET'])
 def show_raw_edit(id):
-    info = js().call('/job/%s' % id, show = 'raw')
+    job = js().call('/job/%s' % id, yaml = 1)
     return render_template('job_edit_raw.html',
                            id = id,
-                           job = info)
+                           job = job)
 
 
 @app.route('/<id>/edit', methods = ['GET'])
 def show_edit(id):
     recipes = js().call('/recipe/')['recipes']
 
-    info = js().call('/job/%s' % id)
-    params = info['parameters']
+    job = js().call('/job/%s' % id)
+    params = job['merged_params']
     for k, v in params.iteritems():
         # 'default' doesn't play well in jquery.tmpl - why?
         if 'default' in v:
@@ -78,7 +81,7 @@ def show_edit(id):
     return render_template('job_edit.html',
                            id = id,
                            params = params,
-                           job = info,
+                           job = job,
                            recipes = recipes)
 
 
@@ -102,8 +105,8 @@ def start(id):
 
 @app.route('/<id>/start', methods = ['GET'])
 def show_start(id):
-    info = js().call('/job/%s' % id)
-    params = info['parameters']
+    job = js().call('/job/%s' % id)
+    params = job['merged_params']
     for k, v in params.iteritems():
         # 'default' doesn't play well in jquery.tmpl - why?
         if 'default' in v:
@@ -116,24 +119,24 @@ def show_start(id):
     return render_template('job_start.html',
                            id = id,
                            params = params,
-                           job = info)
+                           job = job)
 
 
 @app.route('/<id>/home', methods = ['GET'])
 @app.route('/<id>', methods = ['GET'])
 def show_home(id):
-    info = js().call('/job/%s' % id)
+    job = js().call('/job/%s' % id)
     return render_template('job_settings.html',
                            id = id,
-                           job = info)
+                           job = job)
 
 
 @app.route('/<id>/history', methods = ['GET'])
 def show_history(id):
-    info = js().call('/job/%s' % id)
+    job = js().call('/job/%s' % id, history = 1)
     return render_template('job_history.html',
                            id = id,
-                           job = info)
+                           job = job)
 
 
 def find_same_entry(log, session_no, t):
@@ -171,13 +174,13 @@ def simplify_log(log):
 @app.route('/<id>/latest', methods = ['GET'])
 def show_latest(id):
     job = js().call('/job/%s' % id)
-    return show_build(id, job.get('latest_no', 0), job)
+    return show_build(id, job['latest_no'], job)
 
 
 @app.route('/<id>/success', methods = ['GET'])
 def show_success(id):
     job = js().call('/job/%s' % id)
-    return show_build(id, job.get('success_no', 0), job)
+    return show_build(id, job['success_no'], job)
 
 
 @app.route('/<id>/<int:build_no>/log', methods = ['GET'])
@@ -213,9 +216,8 @@ def show_build(id, build_no, job = None):
 @app.route('/new', methods = ['POST'])
 def new():
     id = request.form['name'].strip()
-    contents = {'recipe': request.form['recipe']}
-    js().call('/job/%s' % id,
-              input = dict(contents = contents))
+    js().call('/job/%s/create' % id,
+              input = dict(recipe = request.form['recipe']))
     return redirect(url_for('.show_edit', id = id))
 
 

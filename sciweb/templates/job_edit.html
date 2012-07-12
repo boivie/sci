@@ -16,7 +16,7 @@
           <div class="controls">
 	    <select name="recipe" class="input-xlarge">
 {% for recipe in recipes %}
-              <option value="{{recipe.id}}"{% if recipe.id==job.settings.recipe%} selected="selected"{%endif%}>{{recipe.id}}</option>
+              <option value="{{recipe.id}}"{% if recipe.id==job.recipe%} selected="selected"{%endif%}>{{recipe.id}}</option>
 {% endfor %}
             </select>
           </div>
@@ -24,20 +24,20 @@
 	<div class="control-group">
           <label class="control-label" for="recipe_ref">Recipe Reference</label>
           <div class="controls">
-	    <input type="text" class="input-xlarge" name="recipe_ref" value="{{job.settings.recipe_ref}}">
+	    <input type="text" class="input-xlarge" name="recipe_ref" value="{{job.recipe_ref or ""}}">
             <p class="help-block">Optional recipe revision if you want to lock it down</p>
           </div>
 	</div>
 	<div class="control-group">
           <label class="control-label" for="description">Description</label>
           <div class="controls">
-	    <input type="text" class="input-xlarge" name="description" value="{{job.settings.description}}">
+	    <input type="text" class="input-xlarge" name="description" value="{{job.description}}">
           </div>
 	</div>
 	<div class="control-group">
           <label class="control-label" for="description">Tags</label>
           <div class="controls">
-	    <input type="text" class="input-xlarge" name="tags" value="{{job.settings.tags|join(', ')}}">
+	    <input type="text" class="input-xlarge" name="tags" value="{{job.tags|join(', ')}}">
             <p class="help-block">Optional tags separated by comma</p>
           </div>
 	</div>
@@ -115,7 +115,7 @@ function make_active(name) {
   }
 }
 {% endraw %}
-{% for p in job.settings.parameters %}
+{% for p in job.parameters %}
 make_active('{{p}}');
 {% endfor %}
 </script>
