@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, url_for, request, redirect, abort
-from flask import current_app
+from flask import current_app, make_response, jsonify
 import yaml
 
 from sci.http_client import HttpClient, HttpError
@@ -139,38 +139,6 @@ def show_history(id):
                            job = job)
 
 
-def find_same_entry(log, session_no, t):
-    for e in log:
-        if e['s'] == session_no and e['type'] == t:
-            return e
-    return None
-
-
-def find_other_entry(log, session_no, t):
-    for e in log:
-        if e['type'] == t and e['params']['session_no'] == session_no:
-            return e
-    return None
-
-
-def simplify_log(log):
-    result = []
-    for i in range(len(log)):
-        skip = False
-        entry = log[i]
-        entry['indent'] = 0
-        if entry['type'] == 'step-begun':
-            entry['end'] = find_same_entry(log[i:], entry['s'], 'step-done')
-        elif entry['type'] == 'step-done':
-            skip = True
-        elif entry['type'] == 'run-async':
-            entry['end'] = find_other_entry(log[i:], entry['params']['session_no'], 'async-joined')
-            entry['indent'] = 1
-        if not skip:
-            result.append(entry)
-    return result
-
-
 @app.route('/<id>/latest', methods = ['GET'])
 def show_latest(id):
     job = js().call('/job/%s' % id)
@@ -187,17 +155,26 @@ def show_success(id):
 def show_log(id, build_no):
     job = js().call('/job/%s' % id)
     info = js().call('/build/%s,%d' % (id, build_no))
-    log = info['log']
-    for l in log:
-        l['dt'] = (l['t'] - log[0]['t']) / 1000
-    log = simplify_log(log)
 
-    return render_template('build_log.html',
+    resp = render_template('build_log.html',
                            id = id,
                            build = info['build'],
                            sessions = info['sessions'],
-                           job = job,
-                           log = log)
+                           uuid = info['uuid'],
+                           job = job)
+    resp = make_response(resp)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    return resp
+
+
+@app.route('/<build_uuid>/progress.json', methods = ['GET'])
+def build_progress(build_uuid):
+    start = request.args.get('start')
+    if start:
+        ret = js().call('/build/%s/progress' % build_uuid, start = start)
+    else:
+        ret = js().call('/build/%s/progress' % build_uuid)
+    return jsonify(**ret)
 
 
 @app.route('/<id>/<int:build_no>', methods = ['GET'])

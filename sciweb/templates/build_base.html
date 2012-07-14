@@ -42,6 +42,24 @@
        </a>
      </li>
    </script>
+   <script id="le-job-begun" type="text/x-jquery-tmpl">
+     <tr><td></td><td class="log_entry">Job Started</td></tr>
+   </script>
+   <script id="le-job-done" type="text/x-jquery-tmpl">
+     <tr><td></td><td class="log_entry">Job Done</td></tr>
+   </script>
+   <script id="le-step-running" type="text/x-jquery-tmpl">
+     <tr><td><img src="/static/img/ajax-loader.gif" width="16" height="16"></td><td class="log_entry">${params.name}</td></tr>
+   </script>
+   <script id="le-step-done" type="text/x-jquery-tmpl">
+     <tr><td><i class="icon-ok"/></td><td class="log_entry">${params.name}</td></tr>
+   </script>
+   <script id="le-async-running" type="text/x-jquery-tmpl">
+     <tr><td><img src="/static/img/ajax-loader.gif" width="16" height="16"></td><td class="log_entry"><a href="javascript:toggle_session(${params.session_no})">[+]</a> ${params.title}</td></tr>
+   </script>
+   <script id="le-async-done" type="text/x-jquery-tmpl">
+     <tr><td><i class="icon-ok"/></td><td class="log_entry"><a href="javascript:toggle_session(${params.session_no})">[+]</a> ${params.title}</td></tr>
+   </script>
 {% endraw %}
 {% block subcontents %}{% endblock %}
 {% endblock %}

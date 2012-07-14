@@ -1,50 +1,3 @@
-{% macro fl(entry,ongoing) -%}
-<tr>
-{% if ongoing %}
-<td>...</td>
-{% else %}
-<td></td>
-{% endif %}
-<td class="log_entry">
-{% if entry.indent == 1 %}
-->
-{% endif %}
-  {{ caller() }}
-</td>
-</tr>
-{%- endmacro %}
-
-{% macro log_entry(entry, log) -%}
-{% if entry.type == 'job-begun' %}
-{% call fl(entry, False) %}Job Started{% endcall %}
-{% elif entry.type == 'step-begun' %}
-{% if entry.end %}
-{% call fl(entry, False) %}{{entry.params.name}} <span class="log_auto">time {{entry.end.params.time|pretty_dur}}</span>{% endcall %}
-{% else %}
-{% call fl(entry, True) %}{{entry.params.name}}{% endcall %}
-{% endif %}
-{% elif entry.type == 'run-async' %}
-{% if entry.end %}
-{% call fl(entry, False) %}{{entry.params.title}} <span class="log_auto">time {{entry.end.params.time|pretty_dur}}</span>{% endcall %}
-{% else %}
-{% call fl(entry, True) %}{{entry.params.title}}{% endcall %}
-{% endif %}
-{% elif entry.type == 'job-done' %}
-{% call fl(entry, False) %}Job Done{% endcall %}
-{% elif entry.type == 'job-error' %}
-{% call fl(entry, False) %}ERROR: {{entry.params.what}}{% endcall %}
-{% elif entry.type == 'async-joined' %}
-{% elif entry.type == 'set-description' %}
-{% elif entry.type == 'session-done' %}
-{% elif entry.type == 'artifact-added' %}
-{% elif entry.type == 'set-build-id' %}
-{% elif entry.type == 'session-start' %}
-{% else %}
-{% call fl(entry) %}{{ entry }}{% endcall %}
-{% endif %}
-</li>
-{%- endmacro %}
-
 {% set active_tab = "log" %}
 {% extends "build_base.html" %}
 {% block pagetitle %}{{name}} #{{build.number}} - {{build.build_id}}{% endblock %}
@@ -53,10 +6,7 @@
   <div class="span8">
     <h3>Events</h3>
     <table class="log table table-condensed table-striped">
-      <tbody>
-{% for entry in log if entry.s == 0 %}
-{{ log_entry(entry, log) }}
-{% endfor %}
+      <tbody id="log-items">
       </tbody>
     </table>
   </div>
@@ -68,5 +18,81 @@
 {% endfor %}
     </ul>
   </div>
+  <div id="images">
+
+  </div>
 </div>
+{% endblock %}
+{% block js %}
+  var expanded_sessions = [0];
+  var entries = [];
+  var log_start = 0;
+
+  function toggle_session(s) {
+    if (session_active(s)) {
+      expanded_sessions.splice(expanded_sessions.indexOf(s), 1);
+    } else {
+      expanded_sessions.push(s);
+    }
+    render();
+  }
+
+  function session_active(s) {
+    return (expanded_sessions.indexOf(s) != -1);
+  }
+
+  function render_session(sid, indent) {
+    for (var idx in entries) {
+      var e = entries[idx];
+      var ongoing = true;
+      if (e.s != sid) continue;
+      if (e.type == 'step-begun') {
+        for (var si = idx; si < entries.length; si++)
+	  if (entries[si].type == 'step-done' && entries[si].s == e.s)
+            ongoing = false;
+        if (ongoing)
+          $("#le-step-running").tmpl(e).appendTo("#log-items");
+        else
+          $("#le-step-done").tmpl(e).appendTo("#log-items");
+      } else if (e.type == 'run-async') {
+        for (var si = idx; si < entries.length; si++)
+	  if (entries[si].type == 'async-joined' && entries[si].params.session_no == e.params.session_no)
+            ongoing = false;
+        if (ongoing)
+          $("#le-async-running").tmpl(e).appendTo("#log-items");
+        else
+          $("#le-async-done").tmpl(e).appendTo("#log-items");
+        if (session_active(e.params.session_no))
+          render_session(e.params.session_no, indent + 1);
+      } else if (e.type == 'job-begun') {
+        $("#le-job-begun").tmpl(e).appendTo("#log-items");
+      } else if (e.type == 'job-done') {
+        $("#le-job-done").tmpl(e).appendTo("#log-items");
+      }
+    }
+  }
+
+  function render() {
+    $("#log-items").empty();
+    render_session(0, 0);
+  }
+
+  function getLogs() {
+    $.getJSON('/builds/{{uuid}}/progress.json?start=' + log_start, function(data) {
+      var items = [];
+
+      if (data.log.length > 0) {
+        $.each(data.log, function(key, val) {
+          if (val.type == 'job-done' || val.type == 'job-error') {
+            window.clearInterval(timer);
+          }
+          entries.push(val);
+          log_start = val.id + 1;
+        });
+        render();
+      }
+    });
+  }
+  getLogs();
+  var timer = window.setInterval(getLogs, 1000);
 {% endblock %}
