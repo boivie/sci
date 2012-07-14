@@ -96,8 +96,28 @@ def get_build2(job_name, number):
                 s['agent_nick'] = nick
 
     return jsonify(build = build,
+                   uuid = build_id,
                    log = log,
                    sessions = sessions)
+
+
+@app.route('/<build_id>/progress', methods=['GET'])
+def get_log(build_id):
+    start = int(request.args.get('start', 0))
+    nmax = int(request.args.get('max', 1000))
+    log = g.db.lrange(KEY_SLOG % build_id, start=start, end=start + nmax - 1)
+    log = [json.loads(l) for l in log]
+
+    for idx in xrange(len(log)):
+        log[idx]['id'] = idx + start
+
+    filtered = []
+    for l in log:
+        if l['type'] in ('job-begun', 'step-begun', 'step-done', 'run-async',
+                         'async-joined', 'job-done', 'job-error'):
+            filtered.append(l)
+
+    return jsonify(log = filtered)
 
 
 @app.route('/recent/done', methods=['GET'])
