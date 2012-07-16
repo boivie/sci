@@ -4,8 +4,7 @@ import json
 from jobserver.db import KEY_RECIPES, KEY_JOBS, KEY_TAG
 from jobserver.db import KEY_JOB, KEY_RECIPE
 from jobserver.job import Job
-from jobserver.recipe import get_recipe_uncached
-from jobserver.recipe import get_recipe_metadata_from_blob
+from jobserver.recipe import Recipe
 
 app = Blueprint('admin', __name__)
 
@@ -39,15 +38,14 @@ def rebuild_caches():
         recipes = [r[19:] for r in g.repo.refs.keys()
                    if r.startswith('refs/heads/recipes')]
         for name in recipes:
-            dbref, contents = get_recipe_uncached(g.repo, name)
-            meta = get_recipe_metadata_from_blob(contents)
-            for tag in meta.get('Tags', []):
+            contents, dbref = Recipe._get_from_archive(name)
+            recipe = Recipe.parse(name, contents, dbref)
+            for tag in recipe.tags:
                 pipe.sadd(KEY_TAG % tag, 'r' + name)
-            pipe.hset(KEY_RECIPE % name, 'contents', contents)
-            pipe.hset(KEY_RECIPE % name, 'description',
-                      meta.get('Description', ''))
-            pipe.hset(KEY_RECIPE % name, 'tags',
-                      ",".join(meta.get('Tags', '')))
+            pipe.hset(KEY_RECIPE % name, 'contents', recipe.contents)
+            pipe.hset(KEY_RECIPE % name, 'json', json.dumps(recipe.metadata))
+            pipe.hset(KEY_RECIPE % name, 'description', recipe.description)
+            pipe.hset(KEY_RECIPE % name, 'tags', ",".join(recipe.tags))
             pipe.hset(KEY_RECIPE % name, 'sha1', dbref)
             pipe.sadd(KEY_RECIPES, name)
 

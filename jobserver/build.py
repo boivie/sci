@@ -4,7 +4,7 @@ from flask import g
 
 from sci.utils import random_sha1
 from jobserver.utils import get_ts
-from jobserver.recipe import get_recipe_ref
+from jobserver.recipe import Recipe
 from jobserver.db import BUILD_HISTORY
 
 KEY_JOB_BUILDS = 'job:builds:%s'
@@ -37,7 +37,7 @@ BUILD_HISTORY_LIMIT = 100
 def new_build(job, parameters = {}, description = ''):
     recipe_ref = job.recipe_ref
     if not recipe_ref:
-        recipe_ref = get_recipe_ref(g.repo, job.recipe)
+        recipe_ref = Recipe.load(job.recipe).ref
 
     # Insert the build (first without build number, as we don't know it)
     build_id = 'B%s' % random_sha1()

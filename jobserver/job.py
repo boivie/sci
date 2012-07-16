@@ -2,7 +2,7 @@ import json
 
 from flask import g
 import yaml
-from jobserver.recipe import get_recipe_metadata
+from jobserver.recipe import Recipe
 from jobserver.db import KEY_JOB, KEY_JOBS, KEY_TAG
 from jobserver.build import KEY_JOB_BUILDS, KEY_BUILD
 from jobserver.gitdb import create_commit, update_head
@@ -127,9 +127,8 @@ class Job(object):
 
     def get_merged_params(self):
         params = {}
-        recipe = get_recipe_metadata(g.repo, self.recipe, self.recipe_ref)
-
-        for k, v in recipe['Parameters'].iteritems():
+        recipe = Recipe.load(self.recipe, self.recipe_ref)
+        for k, v in recipe.parameters.iteritems():
             v['name'] = k
             params[k] = v
 

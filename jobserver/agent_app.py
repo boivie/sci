@@ -11,7 +11,7 @@ from jobserver.build import set_session_done, set_session_running
 from jobserver.build import get_session_title, set_build_done
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
 from jobserver.job import Job
-from jobserver.recipe import get_recipe_contents
+from jobserver.recipe import Recipe
 from jobserver.slog import add_slog
 from async.agent_available import AgentAvailable
 from async.dispatch_session import DispatchSession
@@ -158,9 +158,8 @@ def get_session_info(session_id):
     session = get_session(g.db, session_id)
     build_uuid = session_id.split('-')[0]
     build = get_build_info(g.db, build_uuid)
-    ref, recipe = get_recipe_contents(g.repo, build['recipe'],
-                                      build.get('recipe_ref'))
-    job = Job.load(build['job_name'], build.get('job_ref'))
+    recipe = Recipe.load(build['recipe'], build['recipe_ref'])
+    job = Job.load(build['job_name'], build['job_ref'])
 
     # Calculate the actual parameters - setting defaults if static value.
     # (parameters that have a function as default value will have them
@@ -176,7 +175,7 @@ def get_session_info(session_id):
     return jsonify(run_info = session['run_info'] or {},
                    build_uuid = build_uuid,
                    build_name = "%s-%d" % (build['job_name'], build['number']),
-                   recipe = recipe,
+                   recipe = recipe.contents,
                    ss_token = build['ss_token'],
                    ss_url = current_app.config['SS_URL'],
                    parameters = parameters)
