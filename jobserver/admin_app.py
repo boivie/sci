@@ -1,5 +1,5 @@
 from flask import Blueprint, g
-import yaml
+import json
 
 from jobserver.db import KEY_RECIPES, KEY_JOBS, KEY_TAG
 from jobserver.db import KEY_JOB, KEY_RECIPE
@@ -26,14 +26,13 @@ def rebuild_caches():
                 if r.startswith('refs/heads/jobs')]
         for name in jobs:
             yaml_str, dbref = Job._get_from_archive(name)
-            job = yaml.safe_load(yaml_str)
-            for tag in job.get('tags', []):
+            job = Job.parse(name, yaml_str, dbref)
+            for tag in job.tags:
                 pipe.sadd(KEY_TAG % tag, 'j' + name)
             pipe.hset(KEY_JOB % name, 'yaml', yaml_str)
-            pipe.hset(KEY_JOB % name, 'description',
-                      job.get('description', ''))
-            pipe.hset(KEY_JOB % name, 'tags',
-                      ",".join(job.get('tags', '')))
+            pipe.hset(KEY_JOB % name, 'json', json.dumps(job._obj))
+            pipe.hset(KEY_JOB % name, 'description', job.description)
+            pipe.hset(KEY_JOB % name, 'tags', job.tags)
             pipe.hset(KEY_JOB % name, 'sha1', dbref)
             pipe.sadd(KEY_JOBS, name)
 
