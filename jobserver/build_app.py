@@ -106,7 +106,8 @@ def get_log(build_uuid):
     filtered = []
     for l in log:
         if l['type'] in ('job-begun', 'step-begun', 'step-done', 'run-async',
-                         'async-joined', 'job-done', 'job-error'):
+                         'async-joined', 'session-start', 'job-done',
+                         'job-error'):
             filtered.append(l)
 
     return jsonify(log = filtered)
