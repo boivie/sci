@@ -44,9 +44,9 @@
   function render_session(sid, indent) {
     for (var idx in entries) {
       var e = entries[idx];
-      var ongoing = true;
       if (e.s != sid) continue;
       if (e.type == 'step-begun') {
+        var ongoing = true;
         for (var si = idx; si < entries.length; si++)
 	  if (entries[si].type == 'step-done' && entries[si].s == e.s)
             ongoing = false;
@@ -55,13 +55,15 @@
         else
           $("#le-step-done").tmpl(e).appendTo("#log-items");
       } else if (e.type == 'run-async') {
-        for (var si = idx; si < entries.length; si++)
-	  if (entries[si].type == 'async-joined' && entries[si].params.session_no == e.params.session_no)
-            ongoing = false;
-        if (ongoing)
-          $("#le-async-running").tmpl(e).appendTo("#log-items");
-        else
-          $("#le-async-done").tmpl(e).appendTo("#log-items");
+        var state = "queued";
+        for (var si = idx; si < entries.length; si++) {
+	  if (entries[si].type == 'async-joined' && entries[si].params.session_no == e.params.session_no) {
+            state = "done";
+          } else if (entries[si].type == 'session-start' && entries[si].s == e.params.session_no) {
+            state = "running";
+          }
+        }
+	$("#le-async-" + state).tmpl(e).appendTo("#log-items");
         if (session_active(e.params.session_no))
           render_session(e.params.session_no, indent + 1);
       } else if (e.type == 'job-begun') {
