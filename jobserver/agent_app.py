@@ -6,7 +6,7 @@ from pyres import ResQ
 
 from jobserver.utils import get_ts
 import jobserver.db as jdb
-from jobserver.build import create_session, get_session, get_build_info
+from jobserver.build import create_session, get_session, Build
 from jobserver.build import set_session_done, set_session_running
 from jobserver.build import get_session_title, set_build_done
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
@@ -157,15 +157,15 @@ def get_session_result(session_id):
 def get_session_info(session_id):
     session = get_session(g.db, session_id)
     build_uuid = session_id.split('-')[0]
-    build = get_build_info(g.db, build_uuid)
-    recipe = Recipe.load(build['recipe'], build['recipe_ref'])
-    job = Job.load(build['job_name'], build['job_ref'])
+    build = Build.load(build_uuid)
+    recipe = Recipe.load(build.recipe, build.recipe_ref)
+    job = Job.load(build.job_name, build.job_ref)
 
     # Calculate the actual parameters - setting defaults if static value.
     # (parameters that have a function as default value will have them
     #  called just before starting the job)
     param_def = job.get_merged_params()
-    parameters = build['parameters']
+    parameters = build.parameters
 
     for name in param_def:
         param = param_def[name]
@@ -174,9 +174,9 @@ def get_session_info(session_id):
 
     return jsonify(run_info = session['run_info'] or {},
                    build_uuid = build_uuid,
-                   build_name = "%s-%d" % (build['job_name'], build['number']),
+                   build_name = "%s-%d" % (build.job_name, build.number),
                    recipe = recipe.contents,
-                   ss_token = build['ss_token'],
+                   ss_token = build.ss_token,
                    ss_url = current_app.config['SS_URL'],
                    parameters = parameters)
 
@@ -211,13 +211,13 @@ def agent_details(agent_id):
         abort(404)
     history = []
     for session_id in g.db.lrange(jdb.KEY_AGENT_HISTORY % agent_id, 0, 19):
-        build_id = session_id.split('-')[0]
-        build = get_build_info(g.db, build_id)
+        build_uuid = session_id.split('-')[0]
+        build = Build.load(build_uuid)
         session = get_session(g.db, session_id)
         history.append({'session_id': session_id,
-                        'build_id': build['build_id'],
-                        'job_name': build['job_name'],
-                        'number': build['number'],
+                        'build_id': build.build_id,
+                        'job_name': build.job_name,
+                        'number': build.number,
                         'started': session['started'],
                         'ended': session['ended'],
                         'result': session['result'],

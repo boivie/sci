@@ -34,68 +34,110 @@ RESULT_ABORTED = 'aborted'
 BUILD_HISTORY_LIMIT = 100
 
 
-def new_build(job, parameters = {}, description = ''):
-    recipe_ref = job.recipe_ref
-    if not recipe_ref:
-        recipe_ref = Recipe.load(job.recipe).ref
+class Build(object):
 
-    # Insert the build (first without build number, as we don't know it)
-    build_id = 'B%s' % random_sha1()
-    # The 'state' and 'result' are the same as session-0's, but we keep them
-    # here to be able to do smarter queries.
-    build = dict(job_name = job.name,
-                 job_ref = job.ref,
-                 recipe = job.recipe,
-                 recipe_ref = recipe_ref,
-                 number = 0,
-                 build_id = '',
-                 description = description,
-                 created = get_ts(),
-                 next_sess_id = 0,  # will be incremented to 1 below
-                 ss_token = get_ss_token(build_id),
-                 parameters = json.dumps(parameters),
-                 artifacts = json.dumps([]),
-                 state = SESSION_STATE_NEW,
-                 result = RESULT_UNKNOWN)
-    g.db.hmset(KEY_BUILD % build_id, build)
+    def __init__(self, build_uuid, **kwargs):
+        self._uuid        = build_uuid
+        self.job_name     = kwargs['job_name']
+        self.job_ref      = kwargs['job_ref']
+        self.recipe       = kwargs['recipe']
+        self.recipe_ref   = kwargs['recipe_ref']
+        self.number       = kwargs.get('number', 0)
+        self.build_id     = kwargs.get('build_id', '')
+        self.description  = kwargs.get('description', '')
+        self.created      = kwargs.get('created', get_ts())
+        self.next_sess_id = kwargs.get('next_sess_id', 0)
+        self.ss_token     = kwargs.get('ss_token', 'SS' + build_uuid)
+        self.parameters   = kwargs.get('parameters', {})
+        self.artifacts    = kwargs.get('artifacts', [])
+        self.state        = kwargs.get('state', SESSION_STATE_NEW)
+        self.result       = kwargs.get('result', RESULT_UNKNOWN)
 
-    # Create the main session
-    create_session(g.db, build_id)
+    def as_dict(self):
+        return dict(job_name = self.job_name,
+                    job_ref = self.job_ref,
+                    recipe = self.recipe,
+                    recipe_ref = self.recipe_ref,
+                    number = self.number,
+                    build_id = self.build_id,
+                    description = self.description,
+                    created = self.created,
+                    next_sess_id = self.next_sess_id,
+                    ss_token = self.ss_token,
+                    parameters = self.parameters,
+                    artifacts = self.artifacts,
+                    state = self.state,
+                    result = self.result)
 
-    number = g.db.rpush(KEY_JOB_BUILDS % job.name, build_id)
-    values = {'number': number,
-              'build_id': '%s-%d' % (job.name, number)}
-    build['number'] = values['number']
-    build['build_id'] = values['build_id']
-    build['uuid'] = build_id
-    g.db.hmset(KEY_BUILD % build_id, values)
-    return build
+    def save(self):
+        build = self.as_dict()
+        build['parameters'] = json.dumps(self.parameters)
+        build['artifacts'] = json.dumps(self.artifacts)
+        g.db.hmset(KEY_BUILD % self.uuid, build)
 
+    @classmethod
+    def set_description(self, build_uuid, description, pipe = None):
+        if not pipe:
+            pipe = g.db
+        pipe.hset(KEY_BUILD % build_uuid, 'description', description)
 
-def get_ss_token(build_id):
-    return "SS" + build_id
+    @classmethod
+    def set_build_id(self, build_uuid, build_id, pipe = None):
+        if not pipe:
+            pipe = g.db
+        pipe.hset(KEY_BUILD % build_uuid, 'build_id', build_id)
 
+    @classmethod
+    def get_job_name(self, build_uuid):
+        return g.db.hget(KEY_BUILD % build_uuid, 'job_name')
 
-def add_build_artifact(db, build_id, entry):
-    key = KEY_BUILD % build_id
+    @property
+    def uuid(self):
+        return self._uuid
 
-    def update(pipe):
-        files = json.loads(db.hget(key, 'artifacts'))
-        files.append(entry)
-        pipe.multi()
-        pipe.hset(key, 'artifacts', json.dumps(files))
+    @classmethod
+    def create(cls, job, parameters = {}, description = ''):
+        recipe_ref = job.recipe_ref
+        if not recipe_ref:
+            recipe_ref = Recipe.load(job.recipe).ref
 
-    db.transaction(update, key)
+        build_uuid = 'B%s' % random_sha1()
 
+        build = Build(build_uuid,
+                      job_name = job.name, job_ref = job.ref,
+                      recipe = job.recipe, recipe_ref = recipe_ref)
+        build.save()
+        # Create the main session
+        create_session(g.db, build.uuid)
 
-def get_build_info(db, build_id):
-    build = db.hgetall(KEY_BUILD % build_id)
-    if not build:
-        return None
-    build['number'] = int(build['number'])
-    build['parameters'] = json.loads(build['parameters'])
-    build['artifacts'] = json.loads(build['artifacts'])
-    return build
+        number = g.db.rpush(KEY_JOB_BUILDS % job.name, build.uuid)
+        build.number = number
+        build.build_id = '%s-%d' % (job.name, number)
+        g.db.hmset(KEY_BUILD % build.uuid, {'number': build.number,
+                                            'build_id': build.build_id})
+        return build
+
+    @classmethod
+    def add_artifact(cls, build_uuid, entry):
+        key = KEY_BUILD % build_uuid
+
+        def update(pipe):
+            files = json.loads(pipe.hget(key, 'artifacts'))
+            files.append(entry)
+            pipe.multi()
+            pipe.hset(key, 'artifacts', json.dumps(files))
+
+        g.db.transaction(update, key)
+
+    @classmethod
+    def load(cls, build_uuid):
+        build = g.db.hgetall(KEY_BUILD % build_uuid)
+        if not build:
+            return None
+        build['number'] = int(build['number'])
+        build['parameters'] = json.loads(build['parameters'])
+        build['artifacts'] = json.loads(build['artifacts'])
+        return Build(build_uuid, **build)
 
 
 def create_session(db, build_id, parent = None, labels = [],

@@ -2,7 +2,7 @@ import json
 import time
 import types
 
-from jobserver.build import KEY_BUILD, add_build_artifact
+from jobserver.build import Build
 from jobserver.job import Job
 
 KEY_SLOG = 'slog:%s'
@@ -10,22 +10,21 @@ KEY_SLOG = 'slog:%s'
 # TODO: Update sessions when and how?
 
 
-def DoJobDone(db, build_id, session_no, li):
-    # Set the job's last success to this one
-    job_name = db.hget(KEY_BUILD % build_id, 'job_name')
-    Job.set_last_success(job_name, build_id)
+def DoJobDone(db, build_uuid, session_no, li):
+    job_name = Build.get_job_name(build_uuid)
+    Job.set_last_success(job_name, build_uuid)
 
 
-def DoSetDescription(db, build_id, session_no, li):
-    db.hset(KEY_BUILD % build_id, 'description', li['params']['description'])
+def DoSetDescription(db, build_uuid, session_no, li):
+    Build.set_description(build_uuid, li['params']['description'], pipe = db)
 
 
-def DoSetBuildId(db, build_id, session_no, li):
-    db.hset(KEY_BUILD % build_id, 'build_id', li['params']['build_id'])
+def DoSetBuildId(db, build_uuid, session_no, li):
+    Build.set_build_id(build_uuid, li['params']['build_id'], pipe = db)
 
 
-def DoArtifactAdded(db, build_id, session_no, li):
-    add_build_artifact(db, build_id, li['params'])
+def DoArtifactAdded(db, build_uuid, session_no, li):
+    Build.add_artifact(build_uuid, li['params'])
 
 
 SLOG_HANDLERS = {'job-done': DoJobDone,
@@ -35,17 +34,17 @@ SLOG_HANDLERS = {'job-done': DoJobDone,
 
 
 def add_slog(db, session_id, item):
-    build_id, session_no = session_id.split('-')
+    build_uuid, session_no = session_id.split('-')
     if not type(item) in types.StringTypes:
         item = item.serialize()
 
     li = json.loads(item)
     li['s'] = int(session_no)
     li['t'] = int(time.time() * 1000)
-    db.rpush(KEY_SLOG % build_id, json.dumps(li))
+    db.rpush(KEY_SLOG % build_uuid, json.dumps(li))
     try:
         handler = SLOG_HANDLERS[li['type']]
     except KeyError:
         pass
     else:
-        handler(db, build_id, session_no, li)
+        handler(db, build_uuid, session_no, li)
