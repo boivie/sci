@@ -24,7 +24,8 @@ AGENT_STATE_BUSY = "busy"
 # Session history for a certain slave
 KEY_AGENT_HISTORY = 'agent:history:%s'
 
-KEY_JOB = "job:%s"  # hash: 'yaml', 'sha1', 'success'
+KEY_JOB = "job:%s"  # 'json', 'yaml', 'sha1',
+                    # 'success', 'tags', 'description'
 KEY_JOBS = "jobs"
 
 KEY_RECIPE = 'recipe:%s'  # hash: 'contents', 'sha1'

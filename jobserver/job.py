@@ -62,6 +62,12 @@ class Job(object):
     def parameters(self):
         return self._obj.get('parameters', {})
 
+    @classmethod
+    def set_last_success(self, name, build_id, pipe = None):
+        if not pipe:
+            pipe = g.db
+        pipe.hset(KEY_JOB % name, 'success', build_id)
+
     @property
     def last_success(self):
         bid = g.db.hget(KEY_JOB % self.name, 'success')

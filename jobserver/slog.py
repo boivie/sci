@@ -3,7 +3,7 @@ import time
 import types
 
 from jobserver.build import KEY_BUILD, add_build_artifact
-from jobserver.job import KEY_JOB
+from jobserver.job import Job
 
 KEY_SLOG = 'slog:%s'
 
@@ -12,9 +12,8 @@ KEY_SLOG = 'slog:%s'
 
 def DoJobDone(db, build_id, session_no, li):
     # Set the job's last success to this one
-    job = db.hget(KEY_BUILD % build_id, 'job_name')
-    if job:
-        db.hset(KEY_JOB % job, 'success', build_id)
+    job_name = db.hget(KEY_BUILD % build_id, 'job_name')
+    Job.set_last_success(job_name, build_id)
 
 
 def DoSetDescription(db, build_id, session_no, li):
