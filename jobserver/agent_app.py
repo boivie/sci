@@ -8,7 +8,7 @@ from jobserver.utils import get_ts
 import jobserver.db as jdb
 from jobserver.build import create_session, get_session, Build
 from jobserver.build import set_session_done, set_session_running
-from jobserver.build import get_session_title, set_build_done
+from jobserver.build import get_session_title
 from jobserver.build import SESSION_STATE_TO_BACKEND, SESSION_STATE_DONE
 from jobserver.job import Job
 from jobserver.recipe import Recipe
@@ -89,7 +89,7 @@ def check_in_available(agent_id):
         set_session_done(pipe, session_id, request.json['result'],
                          request.json['output'], request.json['log_file'])
         if int(num) == 0:
-            set_build_done(pipe, build_id, request.json['result'])
+            Build.set_done(build_id, request.json['result'], pipe=pipe)
 
         add_slog(pipe, session_id, SessionDone(request.json['result']))
 

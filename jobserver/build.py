@@ -88,6 +88,15 @@ class Build(object):
         pipe.hset(KEY_BUILD % build_uuid, 'build_id', build_id)
 
     @classmethod
+    def set_done(cls, build_uuid, result, pipe):
+        pipe.hmset(KEY_BUILD % build_uuid, {'state': SESSION_STATE_DONE,
+                                          'result': result})
+        # TODO: Clean the sessions, builds and such?
+        # Add to build history
+        pipe.lpush(BUILD_HISTORY, build_uuid)
+        pipe.ltrim(BUILD_HISTORY, 0, BUILD_HISTORY_LIMIT - 1)
+
+    @classmethod
     def get_job_name(self, build_uuid):
         return g.db.hget(KEY_BUILD % build_uuid, 'job_name')
 
@@ -180,15 +189,6 @@ def get_session(db, session_id):
     session['started'] = int(session.get('started', '0'))
     session['ended'] = int(session.get('ended', '0'))
     return session
-
-
-def set_build_done(pipe, build_id, result):
-    pipe.hmset(KEY_BUILD % build_id, {'state': SESSION_STATE_DONE,
-                                      'result': result})
-    # TODO: Clean the sessions, builds and such?
-    # Add to build history
-    pipe.lpush(BUILD_HISTORY, build_id)
-    pipe.ltrim(BUILD_HISTORY, 0, BUILD_HISTORY_LIMIT - 1)
 
 
 def set_session_done(pipe, session_id, result, output, log_file):
