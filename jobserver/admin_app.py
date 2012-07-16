@@ -32,7 +32,7 @@ def rebuild_caches():
             pipe.hset(KEY_JOB % name, 'yaml', yaml_str)
             pipe.hset(KEY_JOB % name, 'json', json.dumps(job._obj))
             pipe.hset(KEY_JOB % name, 'description', job.description)
-            pipe.hset(KEY_JOB % name, 'tags', job.tags)
+            pipe.hset(KEY_JOB % name, 'tags', ",".join(job.tags))
             pipe.hset(KEY_JOB % name, 'sha1', dbref)
             pipe.sadd(KEY_JOBS, name)
 
