@@ -112,6 +112,7 @@ def create_session(db, build_id, parent = None, labels = [],
                    agent = '',
                    run_info = json.dumps(run_info),
                    log_file = '',
+                   created = get_ts(),
                    started = 0,
                    ended = 0,
                    output = json.dumps(None))
@@ -133,6 +134,7 @@ def get_session(db, session_id):
     session['labels'].remove('')  # if labels is empty
     session['run_info'] = json.loads(session.get('run_info', '{}'))
     session['output'] = json.loads(session['output'])
+    session['created'] = int(session.get('created', '0'))
     session['started'] = int(session.get('started', '0'))
     session['ended'] = int(session.get('ended', '0'))
     return session
