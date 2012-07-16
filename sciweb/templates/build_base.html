@@ -1,3 +1,4 @@
+{% set pre_title = (url_for('.show_home', id=id), build.job_name) %}
 {% extends "base.html" %}
 {% block pagetitle %}{{build.build_id}}{% endblock %}
 {% block title %}{{build.build_id}}{% endblock %}

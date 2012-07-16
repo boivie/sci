@@ -1,6 +1,6 @@
 {% set navigation_bar = [
     ('/', 'home', 'Home'),
-    ('/builds', 'builds', 'Builds'),
+    ('/builds', 'builds', 'Jobs & Builds'),
     ('/recipes', 'recipes', 'Recipes'),
     ('/agents', 'agents', 'Agents'),
 ] -%}
@@ -67,6 +67,9 @@
     <div class="container">
 {% block header %}
       <div class="jumbotron subhead">
+{%- if pre_title %}
+        <h3><a href="{{pre_title[0]}}">{{pre_title[1]}}</a></h3>
+{%- endif %}
 	<h1>{{ self.title() }}</h1>
 	<p class="lead">{% block lead %}{% endblock %}</p>
       </div>
