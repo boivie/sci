@@ -55,6 +55,9 @@
    <script id="le-step-done" type="text/x-jquery-tmpl">
      <tr><td><i class="icon-ok"/></td><td class="log_entry">${params.name}</td></tr>
    </script>
+   <script id="le-step-error" type="text/x-jquery-tmpl">
+     <tr><td><i class="icon-remove"/></td><td class="log_entry">${params.name}</td></tr>
+   </script>
    <script id="le-async-queued" type="text/x-jquery-tmpl">
      <tr><td><i class="icon-pause"/></td><td class="log_entry"><a href="javascript:toggle_session(${params.session_no})">[+]</a> ${params.title}</td></tr>
    </script>
@@ -63,6 +66,9 @@
    </script>
    <script id="le-async-done" type="text/x-jquery-tmpl">
      <tr><td><i class="icon-ok"/></td><td class="log_entry"><a href="javascript:toggle_session(${params.session_no})">[+]</a> ${params.title}</td></tr>
+   </script>
+   <script id="le-async-error" type="text/x-jquery-tmpl">
+     <tr><td><i class="icon-remove"/></td><td class="log_entry"><a href="javascript:toggle_session(${params.session_no})">[+]</a> ${params.title}</td></tr>
    </script>
 {% endraw %}
 {% block subcontents %}{% endblock %}

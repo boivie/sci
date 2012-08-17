@@ -46,21 +46,26 @@
       var e = entries[idx];
       if (e.s != sid) continue;
       if (e.type == 'step-begun') {
-        var ongoing = true;
-        for (var si = idx; si < entries.length; si++)
+        var state = 'running';
+        for (var si = idx; si < entries.length; si++) {
 	  if (entries[si].type == 'step-done' && entries[si].s == e.s)
-            ongoing = false;
-        if (ongoing)
-          $("#le-step-running").tmpl(e).appendTo("#log-items");
-        else
-          $("#le-step-done").tmpl(e).appendTo("#log-items");
+            state = 'done';
+	  if (entries[si].type == 'session-done' && entries[si].s == e.s &&
+              state == 'running')
+            state = 'error';
+        }
+        $("#le-step-" + state).tmpl(e).appendTo("#log-items");
       } else if (e.type == 'run-async') {
         var state = "queued";
         for (var si = idx; si < entries.length; si++) {
-	  if (entries[si].type == 'async-joined' && entries[si].params.session_no == e.params.session_no) {
-            state = "done";
-          } else if (entries[si].type == 'session-start' && entries[si].s == e.params.session_no) {
+          if (entries[si].type == 'session-start' && entries[si].s == e.params.session_no) {
             state = "running";
+          } else if (entries[si].type == 'session-done' && entries[si].s == e.params.session_no) {
+            var result = entries[si].params.result;
+            if (result == 'error' || result == 'failed' || result == 'aborted')
+              state = 'error';
+            else if (result == 'success')
+              state = 'done';
           }
         }
 	$("#le-async-" + state).tmpl(e).appendTo("#log-items");
