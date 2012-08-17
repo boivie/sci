@@ -29,6 +29,7 @@ SESSION_STATE_DONE = 'done'
 RESULT_UNKNOWN = 'unknown'
 RESULT_SUCCESS = 'success'
 RESULT_FAILED = 'failed'
+RESULT_ERROR = 'error'
 RESULT_ABORTED = 'aborted'
 
 BUILD_HISTORY_LIMIT = 100
@@ -89,12 +90,15 @@ class Build(object):
 
     @classmethod
     def set_done(cls, build_uuid, result, pipe):
-        pipe.hmset(KEY_BUILD % build_uuid, {'state': SESSION_STATE_DONE,
-                                          'result': result})
+        pipe.hmset(KEY_BUILD % build_uuid, {'result': result})
         # TODO: Clean the sessions, builds and such?
         # Add to build history
         pipe.lpush(BUILD_HISTORY, build_uuid)
         pipe.ltrim(BUILD_HISTORY, 0, BUILD_HISTORY_LIMIT - 1)
+
+    @classmethod
+    def set_state(cls, build_uuid, state, pipe):
+        pipe.hmset(KEY_BUILD % build_uuid, {'state': state})
 
     @classmethod
     def get_job_name(self, build_uuid):
@@ -177,6 +181,13 @@ def get_session_title(session):
     return session.get('title', '')
 
 
+def set_session_state(pipe, session_id, state):
+    build_id, num = session_id.split('-')
+    if int(num) == 0:
+        Build.set_state(build_id, state, pipe=pipe)
+    pipe.hset(KEY_SESSION % session_id, 'state', state)
+
+
 def get_session(db, session_id):
     session = db.hgetall(KEY_SESSION % session_id)
     if not session:
@@ -192,25 +203,25 @@ def get_session(db, session_id):
 
 
 def set_session_done(pipe, session_id, result, output, log_file):
-    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_DONE,
-                                          'result': result,
+    set_session_state(pipe, session_id, SESSION_STATE_DONE)
+    pipe.hmset(KEY_SESSION % session_id, {'result': result,
                                           'output': json.dumps(output),
                                           'log_file': log_file,
                                           'ended': get_ts()})
 
 
 def set_session_queued(pipe, session_id):
-    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_QUEUED})
+    set_session_state(pipe, session_id, SESSION_STATE_QUEUED)
 
 
 def set_session_to_agent(pipe, session_id, agent_id):
-    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_TO_AGENT,
-                                          'agent': agent_id})
+    set_session_state(pipe, session_id, SESSION_STATE_TO_AGENT)
+    pipe.hmset(KEY_SESSION % session_id, {'agent': agent_id})
 
 
 def set_session_running(pipe, session_id):
-    pipe.hmset(KEY_SESSION % session_id, {'state': SESSION_STATE_RUNNING,
-                                          'started': get_ts()})
+    set_session_state(pipe, session_id, SESSION_STATE_RUNNING)
+    pipe.hmset(KEY_SESSION % session_id, {'started': get_ts()})
 
 
 def get_session_labels(db, session_id):
