@@ -150,7 +150,7 @@ def get_session_result(session_id):
         if info['state'] == SESSION_STATE_DONE:
             return jsonify(result = info['result'],
                            output = info['output'])
-        time.sleep(0.5)
+        return jsonify(state = info['state'])
 
 
 @app.route('/session/<session_id>')
