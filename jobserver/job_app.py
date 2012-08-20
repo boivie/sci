@@ -10,7 +10,7 @@ app = Blueprint('job', __name__)
 
 @app.route('/<name>/create', methods=['POST'])
 def create_job(name):
-    job = Job.parse("recipe: %s" % request.json.get('recipe'))
+    job = Job.parse(name, "recipe: %s" % request.json.get('recipe'))
     try:
         job.save()
     except JobNotCurrent:
