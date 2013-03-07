@@ -118,7 +118,8 @@ class Build(object):
 
         build = Build(build_uuid,
                       job_name = job.name, job_ref = job.ref,
-                      recipe = job.recipe, recipe_ref = recipe_ref)
+                      recipe = job.recipe, recipe_ref = recipe_ref,
+                      parameters = parameters, description = description)
         build.save()
         # Create the main session
         create_session(g.db, build.uuid)
