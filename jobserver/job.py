@@ -7,6 +7,8 @@ from jobserver.db import KEY_JOB, KEY_JOBS, KEY_TAG
 from jobserver.build import KEY_JOB_BUILDS, KEY_BUILD
 from jobserver.gitdb import create_commit, update_head
 from jobserver.gitdb import NoChangesException, CommitException
+import jobserver.timers as timers
+from jobserver.cron_parser import CronParser
 
 
 class JobParseError(Exception):
@@ -109,6 +111,9 @@ class Job(object):
         # before an older manages to do it.
         key = KEY_JOB % self.name
 
+        timers_needed = len(self._obj.get('schedules', []))
+        new_timers = timers.allocate(g.db, timers_needed)
+
         def update(pipe):
             try:
                 prev = Job.load(self.name, pipe = pipe)
@@ -116,6 +121,8 @@ class Job(object):
             except JobNotFound:
                 prev_tags = set()
             cur_tags = set(self.tags)
+            cur_timers = pipe.hget(key, 'timers') or ''
+            cur_timers = [c for c in cur_timers.split(',') if c != '']
 
             pipe.multi()
             for tag in prev_tags - cur_tags:
@@ -127,6 +134,22 @@ class Job(object):
             pipe.hset(key, 'description', self.description)
             pipe.hset(key, 'tags', ','.join(self.tags))
             pipe.hset(key, 'sha1', self.ref)
+
+            # Remove old timers
+            for t in cur_timers:
+                timers.kill(pipe, t)
+            # Add new ones
+            pipe.hset(key, 'timers', ','.join([str(a) for a in new_timers]))
+            for idx, sched in enumerate(self._obj.get('schedules', [])):
+                timer_id = new_timers[idx]
+                cron_entry = CronParser.parse(sched['when'])
+                intent = {'type': 'explicit', 'action': 'build',
+                          'extra': {'job': self.name,
+                                    'parameters': sched.get('parameters', {}),
+                                    'description': sched.get('description')}}
+                intent_json = json.dumps(intent)
+                timers.add(pipe, timer_id, cron_entry, intent_json,
+                           sched.get('description'))
             pipe.sadd(KEY_JOBS, self.name)
 
         g.db.transaction(update, key)

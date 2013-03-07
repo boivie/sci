@@ -36,6 +36,11 @@ KEY_TAG = 'tag:%s'
 BUILD_HISTORY = 'build-history'
 
 
+KEY_TIMERS_MAX = 'timers_max'
+KEY_TIMERS = 'timers'
+KEY_TIMER = 'timer:%s'
+
+
 def conn():
     r = redis.StrictRedis(connection_pool=pool)
     return r
