@@ -1,26 +1,45 @@
 How to get started
 ==================
 
-Install
--------
+Installing the master
+---------------------
 
-$ virtualenv ENV
-$ . ENV/bin/activate
-$ pip install -r requirements.txt
+~$ git clone https://github.com/boivie/sci.git
+~$ cd sci
+~/sci$ virtualenv ENV
+~/sci$ . ENV/bin/activate
+~/sci$ pip install -r requirements.txt
 
-Starting the system
+Installing the slaves
+---------------------
+
+Install the slave implementation into a parallel directory to 'sci'
+
+~$ git clone https://github.com/boivie/sci-slave.git
+~$ cd sci-slave
+~/sci-slave$ virtualenv ENV
+~/sci-slave$ . ENV/bin/activate
+~/sci-slave$ pip install -r requirements.txt
+
+Installing the sample
+---------------------
+
+Install the sample into a parallel directory to 'sci'
+
+~$ wget https://github.com/downloads/boivie/sci/mock-android-repo.zip
+~$ unzip mock-android-repo.zip 
+
+Starting the master
 -------------------
 
-The commands below are expected to be run in the SCI directory. Almost all of them
-also expect that you have run ''. ENV/bin/activate'' first. They should be run
-in a terminal window of its own (or a GNU screen window).
+~/sci$ . ENV/bin/activate
+~/sci$ supervisord -config supervisord.conf
 
-$ redis-server redis.conf
-$ ./ss.py
-$ ./jobserver.py
-$ ./sciweb.py
-$ ./backend.py
-$ ./start_slaves.sh 6
+Starting the slaves
+-------------------
+
+~/sci-slave$ . ENV/bin/activate
+~/sci-slave$ ./start_slaves.sh 6
 
 Running the sample
 ------------------
@@ -29,15 +48,8 @@ The sample is a matrix job which builds Android. If you don't want to build an e
 Android system every time, we can use a mocked version of the important parts of
 Android's build system.
 
-$ wget https://github.com/downloads/boivie/sci/mock-android-repo.zip
-$ unzip mock-android-repo.zip 
-$ git daemon --export-all --base-path=mock-android-repo --detach
-
-Now we have a running GIT server offering a mock Android source repository. Let
-us now run the sample:
-
-$ cd samples
-$ ./build-android.py BRANCH=donut-dev
+~/sci$ cd samples
+~/sci/samples$ ./build-android.py BRANCH=donut-dev
 
 License
 =======
